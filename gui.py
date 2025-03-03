@@ -1,3 +1,4 @@
+from tropicsquare.constants import ECC_CURVE_ED25519, ECC_CURVE_P256
 from tropicsquare.ports.cpython import TropicSquareCPython
 from tropicsquare.exceptions import *
 
@@ -94,6 +95,44 @@ def main():
             window.pteRandomBytes.setPlainText("Error: " + str(e))
 
 
+    def on_btnECCRead_click():
+        try:
+            slot = int(window.leECCSlot.text())
+            if slot > 31:
+                raise ValueError("Number must be less than 256")
+
+
+            window.rbECCP256.setChecked(False)
+            window.rbECCEd25519.setChecked(False)
+
+            curve, origin, pubkey = ts.ecc_key_read(slot)
+
+            if origin == 0x01:
+                window.lblECCKeySource.setText("Generated")
+            elif origin == 0x02:
+                window.lblECCKeySource.setText("User stored")
+            else:
+                window.lblECCKeySource.setText("Unknown")
+
+            if curve == ECC_CURVE_P256:
+                window.rbECCP256.setChecked(True)
+                window.rbECCEd25519.setChecked(False)
+            elif curve == ECC_CURVE_ED25519:
+                window.rbECCP256.setChecked(False)
+                window.rbECCEd25519.setChecked(True)
+
+            window.pteECCPubkey.setPlainText(pubkey.hex())
+
+        except TropicSquareNoSession as e:
+            window.pteECCPubkey.setPlainText("No secure session established")
+        except TropicSquareError as e:
+            window.pteECCPubkey.setPlainText("Error: " + str(e))
+        except ValueError as e:
+            window.pteECCPubkey.setPlainText("Error: " + str(e))
+        except Exception as e:
+            window.pteECCPubkey.setPlainText("Error: " + str(e))
+
+
     app = QtWidgets.QApplication(sys.argv)
     window = uic.loadUi("mainwindow.ui")
     window.btnGetInfo.clicked.connect(on_btn_get_info_click)
@@ -103,6 +142,10 @@ def main():
     window.btnPing.clicked.connect(on_btnPing_click)
     window.btnGetRandom.clicked.connect(on_btnbtnGetRandom_click)
     window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
+
+    window.btnECCRead.clicked.connect(on_btnECCRead_click)
+    window.leECCSlot.setValidator(QtGui.QIntValidator(0, 31))
+
 
     window.show()
 
