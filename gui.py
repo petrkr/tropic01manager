@@ -15,7 +15,7 @@ sh0pub  = [0xe7,0xf7,0x35,0xba,0x19,0xa3,0x3f,0xd6,0x73,0x23,0xab,0x37,0x26,0x2d
 
 
 import sys
-from PyQt6 import QtWidgets, uic
+from PyQt6 import QtWidgets, uic, QtGui
 
 
 def main():
@@ -78,6 +78,22 @@ def main():
             window.ptePingResult.setPlainText("Error: " + str(e))
 
 
+    def on_btnbtnGetRandom_click():
+        try:
+            number = int(window.leRandomBytesNum.text())
+            if number > 255:
+                raise ValueError("Number must be less than 256")
+            window.pteRandomBytes.setPlainText(ts.get_random(number).hex())
+        except TropicSquareNoSession as e:
+            window.pteRandomBytes.setPlainText("No secure session established")
+        except TropicSquareError as e:
+            window.pteRandomBytes.setPlainText("Error: " + str(e))
+        except ValueError as e:
+            window.pteRandomBytes.setPlainText("Error: " + str(e))
+        except Exception as e:
+            window.pteRandomBytes.setPlainText("Error: " + str(e))
+
+
     app = QtWidgets.QApplication(sys.argv)
     window = uic.loadUi("mainwindow.ui")
     window.btnGetInfo.clicked.connect(on_btn_get_info_click)
@@ -85,6 +101,8 @@ def main():
     window.btnStartSecureSession.clicked.connect(on_btnStartSecureSession_click)
     window.btnAbortSecureSession.clicked.connect(on_btnAbortSecureSession_click)
     window.btnPing.clicked.connect(on_btnPing_click)
+    window.btnGetRandom.clicked.connect(on_btnbtnGetRandom_click)
+    window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
 
     window.show()
 
