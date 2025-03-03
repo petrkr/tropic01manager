@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>529</width>
+    <height>402</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>TROPIC01 Manager</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="0">
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="sizeIncrement">
+       <size>
+        <width>0</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="currentIndex">
+       <number>1</number>
+      </property>
+      <widget class="QWidget" name="tab">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <attribute name="title">
+        <string>Info</string>
+       </attribute>
+       <widget class="QLabel" name="lblRISCFWVersion">
+        <property name="geometry">
+         <rect>
+          <x>120</x>
+          <y>0</y>
+          <width>71</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>0</y>
+          <width>111</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>RISC-V Firmware:</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_2">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>20</y>
+          <width>111</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>SPECT Firmware:</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="lblSPECTFWVersion">
+        <property name="geometry">
+         <rect>
+          <x>120</x>
+          <y>20</y>
+          <width>81</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+       <widget class="QLabel" name="lblCertPubkey">
+        <property name="geometry">
+         <rect>
+          <x>90</x>
+          <y>90</y>
+          <width>461</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+       <widget class="QLabel" name="lblCertDateIssue">
+        <property name="geometry">
+         <rect>
+          <x>90</x>
+          <y>110</y>
+          <width>171</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_4">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>90</y>
+          <width>71</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Public key:</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="lblCertDateExpire">
+        <property name="geometry">
+         <rect>
+          <x>90</x>
+          <y>130</y>
+          <width>171</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_3">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>50</y>
+          <width>111</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>X.509 Certificate</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_5">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>110</y>
+          <width>81</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Date issued:</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_6">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>130</y>
+          <width>81</width>
+          <height>18</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Date expire:</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="btnGetInfo">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>170</y>
+          <width>88</width>
+          <height>34</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Get Info</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="btnSaveCert">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="geometry">
+         <rect>
+          <x>100</x>
+          <y>170</y>
+          <width>121</width>
+          <height>34</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Save certificate</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="btnStartSecureSession">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>210</y>
+          <width>221</width>
+          <height>34</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Start secure session</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="btnAbortSecureSession">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>250</y>
+          <width>221</width>
+          <height>34</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Abort secure session</string>
+        </property>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="tab_2">
+       <attribute name="title">
+        <string>Ping</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_2">
+        <item row="4" column="0">
+         <widget class="QPushButton" name="btnPing">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
+          <property name="text">
+           <string>Ping</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="label_7">
+          <property name="text">
+           <string>Input text</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QPlainTextEdit" name="ptePingInput"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="label_8">
+          <property name="text">
+           <string>Response text</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QPlainTextEdit" name="ptePingResult">
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>529</width>
+     <height>30</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionExit"/>
+   </widget>
+   <addaction name="menuFile"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionExit">
+   <property name="text">
+    <string>Exit</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>actionExit</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>close()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>399</x>
+     <y>299</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
