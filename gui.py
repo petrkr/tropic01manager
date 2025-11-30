@@ -35,8 +35,10 @@ def main():
 
 
     def on_btn_get_info_click():
-        window.lblRISCFWVersion.setText(ts.riscv_fw_version.hex())
-        window.lblSPECTFWVersion.setText(ts.spect_fw_version.hex())
+        riscv_ver = ts.riscv_fw_version
+        spect_ver = ts.spect_fw_version
+        window.lblRISCFWVersion.setText(f"{riscv_ver[0]}.{riscv_ver[1]}.{riscv_ver[2]}.{riscv_ver[3]}")
+        window.lblSPECTFWVersion.setText(f"{spect_ver[0]}.{spect_ver[1]}.{spect_ver[2]}.{spect_ver[3]}")
         cert = x509.load_der_x509_certificate(ts.certificate, default_backend())
         #window.lteCertificate.setPlainText(cert.public_bytes(encoding=serialization.Encoding.PEM).decode())
         window.lblCertPubkey.setText(ts.public_key.hex())
