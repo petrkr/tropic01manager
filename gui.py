@@ -7,6 +7,95 @@ from networkspi import NetworkSPI, DummyNetworkSpiCSPin
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+from datetime import datetime
+
+
+def parse_certificate_info(cert_data):
+    """Parse certificate information with fallback for problematic certificates.
+
+    Some TROPIC01 rev 1 chips have certificates with RFC 5280 violations:
+    - CRL Distribution Points extension has explicit critical=FALSE encoding
+    - This violates DER encoding rules (default values should be omitted)
+    - Cryptography 43+ enforces strict validation and rejects these certs
+    - OpenSSL accepts them (more lenient parser)
+
+    This function tries multiple parsing approaches:
+    1. Standard cryptography library parsing (works for rev 0 and compliant certs)
+    2. Manual ASN.1 parsing for dates (fallback for non-compliant certs)
+
+    Args:
+        cert_data: Certificate in DER format (bytes or bytearray)
+
+    Returns:
+        tuple: (not_before, not_after, subject_cn) where dates are datetime objects
+               or (None, None, None) on complete failure
+    """
+    cert_bytes = bytes(cert_data)
+
+    # Try standard parsing first (works for most certs)
+    try:
+        cert = x509.load_der_x509_certificate(cert_bytes, default_backend())
+        not_before = cert.not_valid_before_utc
+        not_after = cert.not_valid_after_utc
+        # Extract CN from subject
+        try:
+            cn = cert.subject.get_attributes_for_oid(x509.oid.NameOID.COMMON_NAME)[0].value
+        except:
+            cn = "Unknown"
+        return (not_before, not_after, cn)
+    except Exception:
+        pass  # Fall through to manual parsing
+
+    # Fallback: Manual ASN.1 parsing for dates
+    # This handles certificates with encoding violations that cryptography rejects
+    try:
+        dates = []
+        idx = 0
+        # Find UTCTime fields (tag 0x17, length 0x0d for 13-byte format YYMMDDHHMMSSZ)
+        while idx < len(cert_bytes) - 15:
+            if cert_bytes[idx] == 0x17 and cert_bytes[idx+1] == 0x0d:
+                date_str = cert_bytes[idx+2:idx+15].decode('ascii')
+                # Parse YYMMDDHHMMSSZ format
+                year = int(date_str[0:2])
+                # Y2K handling: years 00-49 are 2000-2049, 50-99 are 1950-1999
+                year = 2000 + year if year < 50 else 1900 + year
+                month = int(date_str[2:4])
+                day = int(date_str[4:6])
+                hour = int(date_str[6:8])
+                minute = int(date_str[8:10])
+                second = int(date_str[10:12])
+                dt = datetime(year, month, day, hour, minute, second)
+                dates.append(dt)
+            idx += 1
+
+        # Extract subject CN manually (UTF8STRING after OID 55 04 03)
+        # OID 2.5.4.3 (commonName) = 55 04 03
+        # Note: There may be multiple CNs (issuer, subject) - use the LAST one (subject)
+        cn = "Unknown"
+        cn_oid = bytes.fromhex('550403')
+        cn_occurrences = []
+        idx = 0
+        while idx < len(cert_bytes):
+            idx = cert_bytes.find(cn_oid, idx)
+            if idx < 0:
+                break
+            try:
+                cn_len = cert_bytes[idx + 4]
+                cn_start = idx + 5
+                cn_value = cert_bytes[cn_start:cn_start + cn_len].decode('utf-8')
+                cn_occurrences.append(cn_value)
+            except:
+                pass
+            idx += 1
+
+        if cn_occurrences:
+            cn = cn_occurrences[-1]  # Last occurrence is subject CN
+
+        if len(dates) >= 2:
+            return (dates[0], dates[1], cn)
+        return (None, None, cn)
+    except Exception:
+        return (None, None, None)
 
 
 # Default factory pairing keys
