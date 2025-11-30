@@ -35,20 +35,30 @@ def main():
     ts = TropicSquareCPython(spi, cs)
 
     # Injecting the certificate
+    # NOTE: Disabled - this breaks handshake by overwriting the chip's real certificate
     #with open("tropic.crt", "rb") as f:
     #    ts._certificate = f.read()
 
 
     def on_btn_get_info_click():
-        riscv_ver = ts.riscv_fw_version
-        spect_ver = ts.spect_fw_version
-        window.lblRISCFWVersion.setText(f"{riscv_ver[0]}.{riscv_ver[1]}.{riscv_ver[2]}.{riscv_ver[3]}")
-        window.lblSPECTFWVersion.setText(f"{spect_ver[0]}.{spect_ver[1]}.{spect_ver[2]}.{spect_ver[3]}")
-        cert = x509.load_der_x509_certificate(ts.certificate, default_backend())
-        #window.lteCertificate.setPlainText(cert.public_bytes(encoding=serialization.Encoding.PEM).decode())
-        window.lblCertPubkey.setText(ts.public_key.hex())
-        window.lblCertDateIssue.setText(cert.not_valid_before_utc.isoformat())
-        window.lblCertDateExpire.setText(cert.not_valid_after_utc.isoformat())
+        try:
+            riscv_ver = ts.riscv_fw_version
+            spect_ver = ts.spect_fw_version
+            window.lblRISCFWVersion.setText(f"{riscv_ver[0]}.{riscv_ver[1]}.{riscv_ver[2]}.{riscv_ver[3]}")
+            window.lblSPECTFWVersion.setText(f"{spect_ver[0]}.{spect_ver[1]}.{spect_ver[2]}.{spect_ver[3]}")
+
+            window.lblCertPubkey.setText(ts.public_key.hex())
+
+            # Parse certificate with fallback for non-compliant certs
+            not_before, not_after, subject_cn = parse_certificate_info(ts.certificate)
+            if not_before and not_after:
+                window.lblCertDateIssue.setText(not_before.isoformat())
+                window.lblCertDateExpire.setText(not_after.isoformat())
+            else:
+                window.lblCertDateIssue.setText("Parse error")
+                window.lblCertDateExpire.setText("Parse error")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Error", f"Failed to get info:\n{str(e)}")
 
 
     def on_btn_save_cert_click():
@@ -58,16 +68,23 @@ def main():
 
         with open(filename, "wb") as f:
             if fileformat == "PEM Certificate files (*.pem *.crt)":
-                cert = x509.load_der_x509_certificate(ts.certificate, default_backend())
+                cert = x509.load_der_x509_certificate(bytes(ts.certificate), default_backend())
                 f.write(cert.public_bytes(encoding=serialization.Encoding.PEM))
             else:
-                f.write(ts.certificate)
+                f.write(bytes(ts.certificate))
 
 
     def on_btnStartSecureSession_click():
-        if ts.start_secure_session(0, bytes(sh0priv), bytes(sh0pub)):
-            window.btnAbortSecureSession.setEnabled(True)
-            window.btnStartSecureSession.setEnabled(False)
+        try:
+            if ts.start_secure_session(0, bytes(sh0priv), bytes(sh0pub)):
+                window.btnAbortSecureSession.setEnabled(True)
+                window.btnStartSecureSession.setEnabled(False)
+        except TropicSquareHandshakeError as e:
+            QtWidgets.QMessageBox.critical(window, "Handshake Error", f"Failed to start secure session:\n{str(e)}")
+        except TropicSquareError as e:
+            QtWidgets.QMessageBox.critical(window, "Error", f"Failed to start secure session:\n{str(e)}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Unexpected Error", f"Failed to start secure session:\n{str(e)}")
 
 
     def on_btnAbortSecureSession_click():
