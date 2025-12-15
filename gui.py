@@ -187,30 +187,31 @@ def main():
                     'port': int(param2)
                 }
             else:
-                QtWidgets.QMessageBox.critical(window, "Error", f"Unknown driver type: {driver_type}")
+                window.lblConnectionStatus.setText("Unknown driver type")
+                window.lblConnectionStatus.setStyleSheet("color: red; font-weight: bold;")
                 return
 
             # Attempt connection
             connection_manager.connect(driver_type, config)
             update_connection_ui()
-            QtWidgets.QMessageBox.information(window, "Success", f"Connected to device via {driver_type}")
 
         except ValueError as e:
-            QtWidgets.QMessageBox.critical(window, "Configuration Error",
-                                         f"Invalid configuration:\n{str(e)}")
+            window.lblConnectionStatus.setText(f"Config error: {str(e)}")
+            window.lblConnectionStatus.setStyleSheet("color: red; font-weight: bold;")
         except Exception as e:
-            QtWidgets.QMessageBox.critical(window, "Connection Error",
-                                         f"Failed to connect to device:\n{str(e)}")
+            window.lblConnectionStatus.setText(f"Failed: {str(e)}")
+            window.lblConnectionStatus.setStyleSheet("color: red; font-weight: bold;")
+            update_connection_ui()  # Ensure buttons are in correct state
 
     def on_disconnect_click():
         """Disconnect from device"""
         try:
             connection_manager.disconnect()
             update_connection_ui()
-            QtWidgets.QMessageBox.information(window, "Success", "Disconnected from device")
         except Exception as e:
-            QtWidgets.QMessageBox.warning(window, "Disconnect Error",
-                                        f"Error during disconnect:\n{str(e)}")
+            window.lblConnectionStatus.setText(f"Disconnect error: {str(e)}")
+            window.lblConnectionStatus.setStyleSheet("color: orange; font-weight: bold;")
+            update_connection_ui()  # Ensure buttons are in correct state
 
     def on_btn_get_info_click():
         ts = connection_manager.get_device()
