@@ -8,6 +8,7 @@ to allow the application to start without requiring a physical device.
 from tropicsquare.ports.cpython import TropicSquareCPython
 from networkspi import NetworkSPI, DummyNetworkSpiCSPin
 from uartspi import UartSPI, TropicUartSpiCS
+import threading
 
 
 class SPIDriverType:
@@ -102,6 +103,35 @@ class DeviceConnectionManager:
             # Create TropicSquare protocol handler
             self.ts = TropicSquareCPython(self.spi, self.cs)
 
+            # Validate that this is actually a TROPIC01 device
+            # Try to get firmware version with timeout
+            validation_result = {'success': False, 'error': None}
+
+            def validate_device():
+                try:
+                    _ = self.ts.riscv_fw_version
+                    validation_result['success'] = True
+                except Exception as e:
+                    validation_result['error'] = str(e)
+
+            # Run validation in thread with timeout
+            validation_thread = threading.Thread(target=validate_device, daemon=True)
+            validation_thread.start()
+            validation_thread.join(timeout=3.0)  # 3 second timeout
+
+            if validation_thread.is_alive():
+                # Timeout - device not responding
+                raise ConnectionError(
+                    "Device validation timeout - device not responding or wrong device type"
+                )
+
+            if not validation_result['success']:
+                # Validation failed
+                error_msg = validation_result['error'] or "Unknown error"
+                raise ConnectionError(
+                    f"Device validation failed - not a TROPIC01: {error_msg}"
+                )
+
             # Store connection info
             self._driver_type = driver_type
             self._config = config.copy()
@@ -111,6 +141,11 @@ class DeviceConnectionManager:
 
         except Exception as e:
             # Clean up on failure
+            if self.spi and hasattr(self.spi, 'close'):
+                try:
+                    self.spi.close()
+                except:
+                    pass
             self.spi = None
             self.cs = None
             self.ts = None
