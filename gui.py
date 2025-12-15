@@ -1,6 +1,7 @@
 from tropicsquare.constants import ECC_CURVE_ED25519, ECC_CURVE_P256
 from tropicsquare.ports.cpython import TropicSquareCPython
 from tropicsquare.exceptions import *
+from tropicsquare.chip_id import ChipId
 
 from connection_manager import DeviceConnectionManager, SPIDriverType
 
@@ -136,6 +137,7 @@ def main():
         # Enable/disable device operation buttons based on connection
         window.btnGetInfo.setEnabled(connected)
         window.btnSaveCert.setEnabled(connected)
+        window.btnGetChipID.setEnabled(connected)
         window.btnStartSecureSession.setEnabled(connected)
         # Note: btnAbortSecureSession enabled state is managed by session handlers
         window.btnPing.setEnabled(connected)
@@ -242,6 +244,50 @@ def main():
                 f.write(cert.public_bytes(encoding=serialization.Encoding.PEM))
             else:
                 f.write(bytes(ts.certificate))
+
+
+    def on_btnGetChipID_click():
+        """Get and display chip ID information"""
+        ts = connection_manager.get_device()
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+
+        try:
+            # Get parsed chip ID (chipid is a property, not a method)
+            chip_id = ts.chipid
+
+            # Display chip information
+            window.lblChipIDVersion.setText('.'.join(map(str, chip_id.chip_id_version)))
+            window.lblSiliconRev.setText(chip_id.silicon_rev)
+            window.lblPackageType.setText(f"{chip_id.package_type_name} (0x{chip_id.package_type_id:04X})")
+            window.lblFabrication.setText(f"{chip_id.fab_name} (0x{chip_id.fab_id:03X})")
+            window.lblPartNumberID.setText(f"0x{chip_id.part_number_id:03X}")
+            window.lblHSMVersion.setText('.'.join(map(str, chip_id.hsm_version)))
+            window.lblProgVersion.setText('.'.join(map(str, chip_id.prog_version)))
+            window.lblBatchID.setText(chip_id.batch_id.hex())
+
+            # Try to decode part number as ASCII (16 bytes)
+            try:
+                part_num_ascii = chip_id.part_num_data.decode('ascii', 'ignore').rstrip('\x00')
+                if part_num_ascii:
+                    window.lblPartNumberASCII.setText(part_num_ascii)
+                else:
+                    window.lblPartNumberASCII.setText(f"(hex: {chip_id.part_num_data.hex()})")
+            except:
+                window.lblPartNumberASCII.setText(f"(hex: {chip_id.part_num_data.hex()})")
+
+            # Display serial number information
+            sn = chip_id.serial_number
+            window.lblSerialNumber.setText(f"0x{sn.sn:02X}")
+            window.lblSNFabID.setText(f"0x{sn.fab_id:03X}")
+            window.lblSNPartNumber.setText(f"0x{sn.part_number_id:03X}")
+            window.lblLotID.setText(sn.lot_id.hex())
+            window.lblWaferID.setText(f"0x{sn.wafer_id:02X}")
+            window.lblWaferCoords.setText(f"({sn.x_coord}, {sn.y_coord})")
+
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Error", f"Failed to get chip ID:\n{str(e)}")
 
 
     def on_btnStartSecureSession_click():
@@ -363,6 +409,7 @@ def main():
     # Connect device operation signals
     window.btnGetInfo.clicked.connect(on_btn_get_info_click)
     window.btnSaveCert.clicked.connect(on_btn_save_cert_click)
+    window.btnGetChipID.clicked.connect(on_btnGetChipID_click)
     window.btnStartSecureSession.clicked.connect(on_btnStartSecureSession_click)
     window.btnAbortSecureSession.clicked.connect(on_btnAbortSecureSession_click)
     window.btnPing.clicked.connect(on_btnPing_click)
