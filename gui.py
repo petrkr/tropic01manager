@@ -122,6 +122,7 @@ def main():
     def update_connection_ui():
         """Update UI elements based on current connection state"""
         connected = connection_manager.is_connected()
+        has_session = connection_manager.has_active_session()
 
         # Update connection controls
         window.btnConnect.setEnabled(not connected)
@@ -134,12 +135,21 @@ def main():
             window.lblConnectionStatus.setText("Disconnected")
             window.lblConnectionStatus.setStyleSheet("color: red; font-weight: bold;")
 
+        # Update secure session controls
+        window.btnStartSecureSession.setEnabled(connected and not has_session)
+        window.btnAbortSecureSession.setEnabled(connected and has_session)
+
+        if has_session:
+            window.lblSessionStatus.setText("Session Active")
+            window.lblSessionStatus.setStyleSheet("color: green; font-weight: bold;")
+        else:
+            window.lblSessionStatus.setText("No Session")
+            window.lblSessionStatus.setStyleSheet("color: gray; font-weight: bold;")
+
         # Enable/disable device operation buttons based on connection
         window.btnGetInfo.setEnabled(connected)
         window.btnSaveCert.setEnabled(connected)
         window.btnGetChipID.setEnabled(connected)
-        window.btnStartSecureSession.setEnabled(connected)
-        # Note: btnAbortSecureSession enabled state is managed by session handlers
         window.btnPing.setEnabled(connected)
         window.btnGetRandom.setEnabled(connected)
         window.btnECCRead.setEnabled(connected)
@@ -298,8 +308,7 @@ def main():
 
         try:
             if ts.start_secure_session(0, bytes(sh0priv), bytes(sh0pub)):
-                window.btnAbortSecureSession.setEnabled(True)
-                window.btnStartSecureSession.setEnabled(False)
+                update_connection_ui()  # Update UI to show active session
         except TropicSquareHandshakeError as e:
             QtWidgets.QMessageBox.critical(window, "Handshake Error", f"Failed to start secure session:\n{str(e)}")
         except TropicSquareError as e:
@@ -314,9 +323,11 @@ def main():
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
 
-        if ts.abort_secure_session():
-            window.btnAbortSecureSession.setEnabled(False)
-            window.btnStartSecureSession.setEnabled(True)
+        try:
+            if ts.abort_secure_session():
+                update_connection_ui()  # Update UI to show no session
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(window, "Error", f"Failed to abort session:\n{str(e)}")
 
 
     def on_btnPing_click():
