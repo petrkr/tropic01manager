@@ -3,6 +3,7 @@ from tropicsquare.ports.cpython import TropicSquareCPython
 from tropicsquare.exceptions import *
 
 from networkspi import NetworkSPI, DummyNetworkSpiCSPin
+from uartspi import UartSPI, TropicUartSpiCS
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -114,12 +115,15 @@ from PyQt6 import QtWidgets, uic, QtGui
 
 
 def main():
-    host = sys.argv[1]
-    port = int(sys.argv[2])
+#    host = sys.argv[1]
+#    port = int(sys.argv[2])
 
     # L1 layer
-    spi = NetworkSPI(host, port)
-    cs = DummyNetworkSpiCSPin(spi)
+#    spi = NetworkSPI(host, port)
+#    cs = DummyNetworkSpiCSPin(spi)
+
+    spi = UartSPI("/dev/ttyACM0", 115200)
+    cs = TropicUartSpiCS(spi)
 
     ts = TropicSquareCPython(spi, cs)
 
