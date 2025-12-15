@@ -175,6 +175,12 @@ def main():
         param1 = window.leParam1.text()
         param2 = window.leParam2.text()
 
+        # Show connecting status
+        window.lblConnectionStatus.setText("Connecting...")
+        window.lblConnectionStatus.setStyleSheet("color: orange; font-weight: bold;")
+        window.btnConnect.setEnabled(False)
+        QtWidgets.QApplication.processEvents()  # Update UI immediately
+
         try:
             if driver_type == "UART":
                 config = {
@@ -187,8 +193,9 @@ def main():
                     'port': int(param2)
                 }
             else:
-                window.lblConnectionStatus.setText("Unknown driver type")
-                window.lblConnectionStatus.setStyleSheet("color: red; font-weight: bold;")
+                QtWidgets.QMessageBox.critical(window, "Configuration Error",
+                                              f"Unknown driver type: {driver_type}")
+                update_connection_ui()
                 return
 
             # Attempt connection
@@ -196,12 +203,13 @@ def main():
             update_connection_ui()
 
         except ValueError as e:
-            window.lblConnectionStatus.setText(f"Config error: {str(e)}")
-            window.lblConnectionStatus.setStyleSheet("color: red; font-weight: bold;")
+            QtWidgets.QMessageBox.critical(window, "Configuration Error",
+                                          f"Invalid configuration:\n{str(e)}")
+            update_connection_ui()
         except Exception as e:
-            window.lblConnectionStatus.setText(f"Failed: {str(e)}")
-            window.lblConnectionStatus.setStyleSheet("color: red; font-weight: bold;")
-            update_connection_ui()  # Ensure buttons are in correct state
+            QtWidgets.QMessageBox.critical(window, "Connection Failed",
+                                          f"Failed to connect to device:\n\n{str(e)}")
+            update_connection_ui()
 
     def on_disconnect_click():
         """Disconnect from device"""
