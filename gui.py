@@ -2,8 +2,7 @@ from tropicsquare.constants import ECC_CURVE_ED25519, ECC_CURVE_P256
 from tropicsquare.ports.cpython import TropicSquareCPython
 from tropicsquare.exceptions import *
 
-from networkspi import NetworkSPI, DummyNetworkSpiCSPin
-from uartspi import UartSPI, TropicUartSpiCS
+from connection_manager import DeviceConnectionManager, SPIDriverType
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -115,25 +114,98 @@ from PyQt6 import QtWidgets, uic, QtGui
 
 
 def main():
-#    host = sys.argv[1]
-#    port = int(sys.argv[2])
+    # Create connection manager - application starts without device connection
+    connection_manager = DeviceConnectionManager()
 
-    # L1 layer
-#    spi = NetworkSPI(host, port)
-#    cs = DummyNetworkSpiCSPin(spi)
+    # Helper function to update UI based on connection state
+    def update_connection_ui():
+        """Update UI elements based on current connection state"""
+        connected = connection_manager.is_connected()
 
-    spi = UartSPI("/dev/ttyACM0", 115200)
-    cs = TropicUartSpiCS(spi)
+        # Update connection controls
+        window.btnConnect.setEnabled(not connected)
+        window.btnDisconnect.setEnabled(connected)
 
-    ts = TropicSquareCPython(spi, cs)
+        if connected:
+            window.lblConnectionStatus.setText("Connected")
+            window.lblConnectionStatus.setStyleSheet("color: green; font-weight: bold;")
+        else:
+            window.lblConnectionStatus.setText("Disconnected")
+            window.lblConnectionStatus.setStyleSheet("color: red; font-weight: bold;")
 
-    # Injecting the certificate
-    # NOTE: Disabled - this breaks handshake by overwriting the chip's real certificate
-    #with open("tropic.crt", "rb") as f:
-    #    ts._certificate = f.read()
+        # Enable/disable device operation buttons based on connection
+        window.btnGetInfo.setEnabled(connected)
+        window.btnSaveCert.setEnabled(connected)
+        window.btnStartSecureSession.setEnabled(connected)
+        # Note: btnAbortSecureSession enabled state is managed by session handlers
+        window.btnPing.setEnabled(connected)
+        window.btnGetRandom.setEnabled(connected)
+        window.btnECCRead.setEnabled(connected)
 
+    def on_driver_type_changed():
+        """Update parameter labels and defaults when driver type changes"""
+        driver_type = window.cmbDriverType.currentText()
+
+        if driver_type == "UART":
+            window.lblParam1.setText("Port:")
+            window.lblParam2.setText("Baudrate:")
+            window.leParam1.setText("/dev/ttyACM1")
+            window.leParam2.setText("115200")
+        elif driver_type == "Network":
+            window.lblParam1.setText("Host:")
+            window.lblParam2.setText("Port:")
+            window.leParam1.setText("localhost")
+            window.leParam2.setText("5000")
+
+    def on_connect_click():
+        """Connect to device using selected driver type and configuration"""
+        driver_type = window.cmbDriverType.currentText()
+        param1 = window.leParam1.text()
+        param2 = window.leParam2.text()
+
+        try:
+            if driver_type == "UART":
+                config = {
+                    'port': param1,
+                    'baudrate': int(param2)
+                }
+            elif driver_type == "Network":
+                config = {
+                    'host': param1,
+                    'port': int(param2)
+                }
+            else:
+                QtWidgets.QMessageBox.critical(window, "Error", f"Unknown driver type: {driver_type}")
+                return
+
+            # Attempt connection
+            connection_manager.connect(driver_type, config)
+            update_connection_ui()
+            QtWidgets.QMessageBox.information(window, "Success", f"Connected to device via {driver_type}")
+
+        except ValueError as e:
+            QtWidgets.QMessageBox.critical(window, "Configuration Error",
+                                         f"Invalid configuration:\n{str(e)}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Connection Error",
+                                         f"Failed to connect to device:\n{str(e)}")
+
+    def on_disconnect_click():
+        """Disconnect from device"""
+        try:
+            connection_manager.disconnect()
+            update_connection_ui()
+            QtWidgets.QMessageBox.information(window, "Success", "Disconnected from device")
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(window, "Disconnect Error",
+                                        f"Error during disconnect:\n{str(e)}")
 
     def on_btn_get_info_click():
+        ts = connection_manager.get_device()
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+
         try:
             riscv_ver = ts.riscv_fw_version
             spect_ver = ts.spect_fw_version
@@ -155,6 +227,11 @@ def main():
 
 
     def on_btn_save_cert_click():
+        ts = connection_manager.get_device()
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+
         filename, fileformat = QtWidgets.QFileDialog.getSaveFileName(window, "Save certificate", "", "PEM Certificate files (*.pem *.crt);;DER Certificate files (*.der);;All files (*)")
         if not filename:
             return
@@ -168,6 +245,11 @@ def main():
 
 
     def on_btnStartSecureSession_click():
+        ts = connection_manager.get_device()
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+
         try:
             if ts.start_secure_session(0, bytes(sh0priv), bytes(sh0pub)):
                 window.btnAbortSecureSession.setEnabled(True)
@@ -181,12 +263,22 @@ def main():
 
 
     def on_btnAbortSecureSession_click():
+        ts = connection_manager.get_device()
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+
         if ts.abort_secure_session():
             window.btnAbortSecureSession.setEnabled(False)
             window.btnStartSecureSession.setEnabled(True)
-    
+
 
     def on_btnPing_click():
+        ts = connection_manager.get_device()
+        if not ts:
+            window.ptePingResult.setPlainText("Not connected to device")
+            return
+
         ping = window.ptePingInput.toPlainText().encode("utf-8")
         try:
             window.ptePingResult.setPlainText(ts.ping(ping).decode("utf-8"))
@@ -197,6 +289,11 @@ def main():
 
 
     def on_btnbtnGetRandom_click():
+        ts = connection_manager.get_device()
+        if not ts:
+            window.pteRandomBytes.setPlainText("Not connected to device")
+            return
+
         try:
             number = int(window.leRandomBytesNum.text())
             if number > 255:
@@ -213,6 +310,11 @@ def main():
 
 
     def on_btnECCRead_click():
+        ts = connection_manager.get_device()
+        if not ts:
+            window.pteECCPubkey.setPlainText("Not connected to device")
+            return
+
         try:
             slot = int(window.leECCSlot.text())
             if slot > 31:
@@ -252,6 +354,13 @@ def main():
 
     app = QtWidgets.QApplication(sys.argv)
     window = uic.loadUi("mainwindow.ui")
+
+    # Connect connection management signals
+    window.cmbDriverType.currentTextChanged.connect(on_driver_type_changed)
+    window.btnConnect.clicked.connect(on_connect_click)
+    window.btnDisconnect.clicked.connect(on_disconnect_click)
+
+    # Connect device operation signals
     window.btnGetInfo.clicked.connect(on_btn_get_info_click)
     window.btnSaveCert.clicked.connect(on_btn_save_cert_click)
     window.btnStartSecureSession.clicked.connect(on_btnStartSecureSession_click)
@@ -263,6 +372,8 @@ def main():
     window.btnECCRead.clicked.connect(on_btnECCRead_click)
     window.leECCSlot.setValidator(QtGui.QIntValidator(0, 31))
 
+    # Initialize UI state (starts disconnected)
+    update_connection_ui()
 
     window.show()
 
