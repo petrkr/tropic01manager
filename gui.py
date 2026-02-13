@@ -391,14 +391,22 @@ def main():
             return
 
         try:
+            window.lblSessionStatus.setText("Starting...")
+            window.lblSessionStatus.setStyleSheet("color: orange; font-weight: bold;")
+            window.btnStartSecureSession.setEnabled(False)
+            QtWidgets.QApplication.processEvents()
+
             if ts.start_secure_session(0, bytes(sh0priv), bytes(sh0pub)):
                 update_connection_ui()  # Update UI to show active session
         except TropicSquareHandshakeError as e:
             QtWidgets.QMessageBox.critical(window, "Handshake Error", f"Failed to start secure session:\n{str(e)}")
+            update_connection_ui()
         except TropicSquareError as e:
             QtWidgets.QMessageBox.critical(window, "Error", f"Failed to start secure session:\n{str(e)}")
+            update_connection_ui()
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Unexpected Error", f"Failed to start secure session:\n{str(e)}")
+            update_connection_ui()
 
 
     def on_btnAbortSecureSession_click():
@@ -407,10 +415,16 @@ def main():
             return
 
         try:
+            window.lblSessionStatus.setText("Aborting...")
+            window.lblSessionStatus.setStyleSheet("color: orange; font-weight: bold;")
+            window.btnAbortSecureSession.setEnabled(False)
+            QtWidgets.QApplication.processEvents()
+
             if ts.abort_secure_session():
                 update_connection_ui()  # Update UI to show no session
         except Exception as e:
             QtWidgets.QMessageBox.warning(window, "Error", f"Failed to abort session:\n{str(e)}")
+            update_connection_ui()
 
 
     def on_btnPing_click():
