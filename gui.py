@@ -1,4 +1,5 @@
 from tropicsquare.constants.ecc import ECC_CURVE_ED25519, ECC_CURVE_P256
+from tropicsquare.constants import MCOUNTER_MAX
 from tropicsquare.ports.cpython import TropicSquareCPython
 from tropicsquare.exceptions import *
 from tropicsquare.transports.uart import UartTransport
@@ -175,6 +176,11 @@ def main():
         window.btnECCStore.setEnabled(connected)
         window.btnECCErase.setEnabled(connected)
         window.leECCPrivateKey.setEnabled(connected)
+        window.btnMCounterGet.setEnabled(connected)
+        window.btnMCounterInit.setEnabled(connected)
+        window.btnMCounterUpdate.setEnabled(connected)
+        window.leMCounterIndex.setEnabled(connected)
+        window.leMCounterInitValue.setEnabled(connected)
 
     def on_driver_type_changed():
         """Update parameter labels and defaults when driver type changes"""
@@ -607,6 +613,66 @@ def main():
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "ECC Erase Failed", str(e))
 
+    def get_mcounter_index():
+        idx_text = window.leMCounterIndex.text().strip()
+        if not idx_text:
+            raise ValueError("Index is required")
+        index = int(idx_text)
+        if index < 0 or index > MCOUNTER_MAX:
+            raise ValueError(f"Index must be 0-{MCOUNTER_MAX}")
+        return index
+
+    def on_btnMCounterGet_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+        try:
+            index = get_mcounter_index()
+            value = ts.mcounter_get(index)
+            window.lblMCounterValue.setText(str(value))
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except ValueError as e:
+            QtWidgets.QMessageBox.warning(window, "Invalid Index", str(e))
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "MCounter Get Failed", str(e))
+
+    def on_btnMCounterInit_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+        try:
+            index = get_mcounter_index()
+            value_text = window.leMCounterInitValue.text().strip()
+            if not value_text:
+                raise ValueError("Init value is required")
+            value = int(value_text)
+            if value < 0 or value > 0xFFFFFFFF:
+                raise ValueError("Init value must be 0-4294967295")
+            ts.mcounter_init(index, value)
+            on_btnMCounterGet_click()
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except ValueError as e:
+            QtWidgets.QMessageBox.warning(window, "Invalid Input", str(e))
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "MCounter Init Failed", str(e))
+
+    def on_btnMCounterUpdate_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+        try:
+            index = get_mcounter_index()
+            ts.mcounter_update(index)
+            on_btnMCounterGet_click()
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except ValueError as e:
+            QtWidgets.QMessageBox.warning(window, "Invalid Index", str(e))
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "MCounter Update Failed", str(e))
+
 
     app = QtWidgets.QApplication(sys.argv)
     window = uic.loadUi("mainwindow.ui")
@@ -632,6 +698,11 @@ def main():
     window.btnECCStore.clicked.connect(on_btnECCStore_click)
     window.btnECCErase.clicked.connect(on_btnECCErase_click)
     window.leECCSlot.setValidator(QtGui.QIntValidator(0, 31))
+    window.leMCounterIndex.setValidator(QtGui.QIntValidator(0, MCOUNTER_MAX))
+
+    window.btnMCounterGet.clicked.connect(on_btnMCounterGet_click)
+    window.btnMCounterInit.clicked.connect(on_btnMCounterInit_click)
+    window.btnMCounterUpdate.clicked.connect(on_btnMCounterUpdate_click)
 
     on_driver_type_changed()
     set_connection_settings_visible(False)
