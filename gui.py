@@ -175,6 +175,26 @@ def main():
             window.lblSessionStatus.setText("No Session")
             window.lblSessionStatus.setStyleSheet("color: gray; font-weight: bold;")
 
+        if connected:
+            driver_type = window.cmbDriverType.currentText()
+            param1 = window.leParam1.text()
+            param2 = window.leParam2.text()
+            if driver_type == "UART":
+                target = param1
+                label = "UART"
+            elif driver_type == "Network":
+                target = f"{param1}:{param2}"
+                label = "NET"
+            elif driver_type == "TCP":
+                target = f"{param1}:{param2}"
+                label = "TCP"
+            else:
+                target = ""
+                label = driver_type
+            window.lblConnectionTarget.setText(f"({label} {target})".strip())
+        else:
+            window.lblConnectionTarget.setText("")
+
         # Enable/disable device operation buttons based on connection
         window.btnGetInfo.setEnabled(connected)
         window.btnSaveCert.setEnabled(connected)

@@ -42,6 +42,16 @@
         </widget>
        </item>
        <item>
+        <widget class="QLabel" name="lblConnectionTarget">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">color: #1f5fbf; font-weight: bold;</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QLabel" name="labelSessionStatusTitle">
          <property name="text">
           <string>Session:</string>
