@@ -1,14 +1,15 @@
-from tropicsquare.constants import ECC_CURVE_ED25519, ECC_CURVE_P256
+from tropicsquare.constants.ecc import ECC_CURVE_ED25519, ECC_CURVE_P256
 from tropicsquare.ports.cpython import TropicSquareCPython
 from tropicsquare.exceptions import *
-from tropicsquare.chip_id import ChipId
-
-from connection_manager import DeviceConnectionManager, SPIDriverType
+from tropicsquare.transports.uart import UartTransport
+from tropicsquare.transports.network import NetworkSpiTransport
+from tropicsquare.transports.tcp import TcpTransport
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from datetime import datetime
+import threading
 
 
 def parse_certificate_info(cert_data):
@@ -115,14 +116,31 @@ from PyQt6 import QtWidgets, uic, QtGui
 
 
 def main():
-    # Create connection manager - application starts without device connection
-    connection_manager = DeviceConnectionManager()
+    # Application starts without device connection
+    ts = None
+    transport = None
+
+    def close_transport():
+        nonlocal transport
+        if not transport:
+            return
+        if hasattr(transport, "close"):
+            try:
+                transport.close()
+            except Exception:
+                pass
+        elif hasattr(transport, "_close"):
+            try:
+                transport._close()
+            except Exception:
+                pass
+        transport = None
 
     # Helper function to update UI based on connection state
     def update_connection_ui():
         """Update UI elements based on current connection state"""
-        connected = connection_manager.is_connected()
-        has_session = connection_manager.has_active_session()
+        connected = ts is not None
+        has_session = connected and hasattr(ts, "_secure_session") and ts._secure_session is not None
 
         # Update connection controls
         window.btnConnect.setEnabled(not connected)
@@ -167,10 +185,16 @@ def main():
             window.lblParam1.setText("Host:")
             window.lblParam2.setText("Port:")
             window.leParam1.setText("localhost")
-            window.leParam2.setText("5000")
+            window.leParam2.setText("12345")
+        elif driver_type == "TCP":
+            window.lblParam1.setText("Host:")
+            window.lblParam2.setText("Port:")
+            window.leParam1.setText("127.0.0.1")
+            window.leParam2.setText("28992")
 
     def on_connect_click():
         """Connect to device using selected driver type and configuration"""
+        nonlocal ts, transport
         driver_type = window.cmbDriverType.currentText()
         param1 = window.leParam1.text()
         param2 = window.leParam2.text()
@@ -182,39 +206,77 @@ def main():
         QtWidgets.QApplication.processEvents()  # Update UI immediately
 
         try:
-            if driver_type == "UART":
-                config = {
-                    'port': param1,
-                    'baudrate': int(param2)
-                }
-            elif driver_type == "Network":
-                config = {
-                    'host': param1,
-                    'port': int(param2)
-                }
-            else:
-                QtWidgets.QMessageBox.critical(window, "Configuration Error",
-                                              f"Unknown driver type: {driver_type}")
-                update_connection_ui()
-                return
+            if ts is not None:
+                if hasattr(ts, "_secure_session") and ts._secure_session:
+                    try:
+                        ts.abort_secure_session()
+                    except Exception:
+                        pass
+                ts = None
+                close_transport()
 
-            # Attempt connection
-            connection_manager.connect(driver_type, config)
+            if driver_type == "UART":
+                transport = UartTransport(param1, int(param2))
+            elif driver_type == "Network":
+                transport = NetworkSpiTransport(param1, int(param2))
+            elif driver_type == "TCP":
+                transport = TcpTransport(param1, int(param2))
+            else:
+                raise ValueError(f"Unknown driver type: {driver_type}")
+
+            ts = TropicSquareCPython(transport)
+
+            # Validate device with timeout
+            validation_result = {"success": False, "error": None}
+
+            def validate_device():
+                try:
+                    _ = ts.riscv_fw_version
+                    validation_result["success"] = True
+                except Exception as e:
+                    validation_result["error"] = str(e)
+
+            validation_thread = threading.Thread(target=validate_device, daemon=True)
+            validation_thread.start()
+            validation_thread.join(timeout=3.0)
+
+            if validation_thread.is_alive():
+                raise ConnectionError(
+                    "Device validation timeout - device not responding or wrong device type"
+                )
+
+            if not validation_result["success"]:
+                error_msg = validation_result["error"] or "Unknown error"
+                raise ConnectionError(
+                    f"Device validation failed - not a TROPIC01: {error_msg}"
+                )
+
             update_connection_ui()
 
         except ValueError as e:
             QtWidgets.QMessageBox.critical(window, "Configuration Error",
                                           f"Invalid configuration:\n{str(e)}")
+            close_transport()
+            ts = None
             update_connection_ui()
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Connection Failed",
                                           f"Failed to connect to device:\n\n{str(e)}")
+            close_transport()
+            ts = None
             update_connection_ui()
 
     def on_disconnect_click():
         """Disconnect from device"""
+        nonlocal ts
         try:
-            connection_manager.disconnect()
+            if ts and hasattr(ts, "_secure_session") and ts._secure_session:
+                try:
+                    ts.abort_secure_session()
+                except Exception:
+                    pass
+            ts = None
+            close_transport()
             update_connection_ui()
         except Exception as e:
             window.lblConnectionStatus.setText(f"Disconnect error: {str(e)}")
@@ -222,7 +284,6 @@ def main():
             update_connection_ui()  # Ensure buttons are in correct state
 
     def on_btn_get_info_click():
-        ts = connection_manager.get_device()
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
@@ -248,7 +309,6 @@ def main():
 
 
     def on_btn_save_cert_click():
-        ts = connection_manager.get_device()
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
@@ -267,7 +327,6 @@ def main():
 
     def on_btnGetChipID_click():
         """Get and display chip ID information"""
-        ts = connection_manager.get_device()
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
@@ -310,7 +369,6 @@ def main():
 
 
     def on_btnStartSecureSession_click():
-        ts = connection_manager.get_device()
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
@@ -327,7 +385,6 @@ def main():
 
 
     def on_btnAbortSecureSession_click():
-        ts = connection_manager.get_device()
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
@@ -340,7 +397,6 @@ def main():
 
 
     def on_btnPing_click():
-        ts = connection_manager.get_device()
         if not ts:
             window.ptePingResult.setPlainText("Not connected to device")
             return
@@ -355,7 +411,6 @@ def main():
 
 
     def on_btnbtnGetRandom_click():
-        ts = connection_manager.get_device()
         if not ts:
             window.pteRandomBytes.setPlainText("Not connected to device")
             return
@@ -376,7 +431,6 @@ def main():
 
 
     def on_btnECCRead_click():
-        ts = connection_manager.get_device()
         if not ts:
             window.pteECCPubkey.setPlainText("Not connected to device")
             return
@@ -439,6 +493,7 @@ def main():
     window.btnECCRead.clicked.connect(on_btnECCRead_click)
     window.leECCSlot.setValidator(QtGui.QIntValidator(0, 31))
 
+    on_driver_type_changed()
     # Initialize UI state (starts disconnected)
     update_connection_ui()
 
