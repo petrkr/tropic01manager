@@ -114,7 +114,7 @@ sh0pub =  [0xF9,0x75,0xEB,0x3C,0x2F,0xD7,0x90,0xC9,0x6F,0x29,0x4F,0x15,0x57,0xA5
 
 import sys
 from PyQt6.QtCore import QSettings
-from PyQt6 import QtWidgets, uic, QtGui
+from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from tropicsquare.constants import config as cfg_constants
 from tropicsquare.config.uap_base import (
     UapMultiSlotConfig,
@@ -169,9 +169,14 @@ def main():
         window.btnSessionToggle.setText("Abort Session" if has_session else "Start Session")
 
         if has_session:
-            window.lblSessionStatus.setText("Session Active")
+            pubkey_prefix = " ".join(f"{b:02x}" for b in bytes(sh0pub)[:8])
+            window.lblSessionStatus.setTextFormat(QtCore.Qt.TextFormat.RichText)
+            window.lblSessionStatus.setText(
+                f"Session Active <span style=\"color:#1f5fbf\">({pubkey_prefix})</span>"
+            )
             window.lblSessionStatus.setStyleSheet("color: green; font-weight: bold;")
         else:
+            window.lblSessionStatus.setTextFormat(QtCore.Qt.TextFormat.PlainText)
             window.lblSessionStatus.setText("No Session")
             window.lblSessionStatus.setStyleSheet("color: gray; font-weight: bold;")
 
