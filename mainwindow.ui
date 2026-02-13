@@ -873,6 +873,109 @@
        <attribute name="title">
         <string>MEM Data</string>
        </attribute>
+       <layout class="QVBoxLayout" name="layoutMemData">
+        <item>
+         <widget class="QGroupBox" name="groupMemRead">
+          <property name="title">
+           <string>Read</string>
+          </property>
+          <layout class="QGridLayout" name="gridMemRead">
+           <item row="0" column="0">
+            <widget class="QLabel" name="labelMemSlot">
+             <property name="text">
+              <string>Slot (0-511)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="leMemSlot"/>
+           </item>
+           <item row="0" column="2">
+            <widget class="QPushButton" name="btnMemRead">
+             <property name="text">
+              <string>Read</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="labelMemHex">
+             <property name="text">
+              <string>Hex</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="3">
+            <widget class="QPlainTextEdit" name="pteMemHex">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="labelMemText">
+             <property name="text">
+              <string>Text</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0" colspan="3">
+            <widget class="QPlainTextEdit" name="pteMemText">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="groupMemWrite">
+          <property name="title">
+           <string>Write</string>
+          </property>
+          <layout class="QGridLayout" name="gridMemWrite">
+           <item row="0" column="0">
+            <widget class="QLabel" name="labelMemFormat">
+             <property name="text">
+              <string>Input</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QRadioButton" name="rbMemHex">
+             <property name="text">
+              <string>Hex</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QRadioButton" name="rbMemText">
+             <property name="text">
+              <string>Text</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0" colspan="3">
+            <widget class="QPlainTextEdit" name="pteMemInput"/>
+           </item>
+           <item row="2" column="0">
+            <widget class="QPushButton" name="btnMemWrite">
+             <property name="text">
+              <string>Write</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QPushButton" name="btnMemErase">
+             <property name="text">
+              <string>Erase</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
       </widget>
       <widget class="QWidget" name="tab_6">
        <attribute name="title">
