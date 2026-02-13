@@ -22,6 +22,66 @@
    </property>
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
+     <widget class="QWidget" name="connectionStatusBar">
+      <layout class="QHBoxLayout" name="layoutConnectionStatusBar">
+       <item>
+        <widget class="QLabel" name="labelConnectionStatusTitle">
+         <property name="text">
+          <string>Status:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="lblConnectionStatus">
+         <property name="text">
+          <string>Disconnected</string>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">color: red; font-weight: bold;</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="labelSessionStatusTitle">
+         <property name="text">
+          <string>Session:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="lblSessionStatus">
+         <property name="text">
+          <string>No Session</string>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">color: gray; font-weight: bold;</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacerConnectionStatus">
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnToggleConnectionSettings">
+         <property name="text">
+          <string>Connection...</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="1" column="0">
      <widget class="QGroupBox" name="groupBoxConnection">
       <property name="title">
        <string>Device Connection</string>
@@ -98,16 +158,6 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="2">
-        <widget class="QLabel" name="lblConnectionStatus">
-         <property name="text">
-          <string>Disconnected</string>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">color: red; font-weight: bold;</string>
-         </property>
-        </widget>
-       </item>
        <item row="4" column="0">
         <widget class="QPushButton" name="btnStartSecureSession">
          <property name="enabled">
@@ -128,20 +178,10 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="2">
-        <widget class="QLabel" name="lblSessionStatus">
-         <property name="text">
-          <string>No Session</string>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">color: gray; font-weight: bold;</string>
-         </property>
-        </widget>
-       </item>
       </layout>
      </widget>
     </item>
-    <item row="1" column="0">
+    <item row="2" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="sizeIncrement">
        <size>

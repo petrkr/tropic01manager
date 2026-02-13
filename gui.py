@@ -196,6 +196,19 @@ def main():
             window.leParam1.setText("127.0.0.1")
             window.leParam2.setText("28992")
 
+    settings_visible = False
+
+    def set_connection_settings_visible(visible: bool):
+        window.groupBoxConnection.setVisible(visible)
+
+    def on_toggle_connection_settings():
+        nonlocal settings_visible
+        settings_visible = not settings_visible
+        set_connection_settings_visible(settings_visible)
+        window.btnToggleConnectionSettings.setText(
+            "Hide Connection" if settings_visible else "Connection..."
+        )
+
     def on_connect_click():
         """Connect to device using selected driver type and configuration"""
         nonlocal ts, transport
@@ -576,6 +589,7 @@ def main():
     window.cmbDriverType.currentTextChanged.connect(on_driver_type_changed)
     window.btnConnect.clicked.connect(on_connect_click)
     window.btnDisconnect.clicked.connect(on_disconnect_click)
+    window.btnToggleConnectionSettings.clicked.connect(on_toggle_connection_settings)
 
     # Connect device operation signals
     window.btnGetInfo.clicked.connect(on_btn_get_info_click)
@@ -594,6 +608,8 @@ def main():
     window.leECCSlot.setValidator(QtGui.QIntValidator(0, 31))
 
     on_driver_type_changed()
+    set_connection_settings_visible(False)
+    window.btnToggleConnectionSettings.setText("Connection...")
     # Initialize UI state (starts disconnected)
     update_connection_ui()
 
