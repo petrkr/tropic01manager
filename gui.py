@@ -429,47 +429,55 @@ def main():
 
     def on_btnPing_click():
         if not ts:
-            window.ptePingResult.setPlainText("Not connected to device")
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
 
         ping = window.ptePingInput.toPlainText().encode("utf-8")
         try:
             window.ptePingResult.setPlainText(ts.ping(ping).decode("utf-8"))
-        except TropicSquareNoSession as e:
-            window.ptePingResult.setPlainText("No secure session established")
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except TropicSquareError as e:
-            window.ptePingResult.setPlainText("Error: " + str(e))
+            QtWidgets.QMessageBox.critical(window, "Ping Failed", str(e))
 
 
     def on_btnbtnGetRandom_click():
         if not ts:
-            window.pteRandomBytes.setPlainText("Not connected to device")
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
 
         try:
-            number = int(window.leRandomBytesNum.text())
+            number_text = window.leRandomBytesNum.text().strip()
+            if not number_text:
+                raise ValueError("Byte count is required")
+            number = int(number_text)
             if number > 255:
                 raise ValueError("Number must be less than 256")
             window.pteRandomBytes.setPlainText(ts.get_random(number).hex())
-        except TropicSquareNoSession as e:
-            window.pteRandomBytes.setPlainText("No secure session established")
-        except TropicSquareError as e:
-            window.pteRandomBytes.setPlainText("Error: " + str(e))
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except ValueError as e:
-            window.pteRandomBytes.setPlainText("Error: " + str(e))
+            QtWidgets.QMessageBox.warning(window, "Invalid Input", str(e))
         except Exception as e:
-            window.pteRandomBytes.setPlainText("Error: " + str(e))
+            QtWidgets.QMessageBox.critical(window, "Random Failed", str(e))
 
+
+    def get_ecc_slot():
+        slot_text = window.leECCSlot.text().strip()
+        if not slot_text:
+            raise ValueError("Slot number is required")
+        slot = int(slot_text)
+        if slot < 0 or slot > 31:
+            raise ValueError("Slot must be 0-31")
+        return slot
 
     def on_btnECCRead_click():
         if not ts:
-            window.pteECCPubkey.setPlainText("Not connected to device")
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
 
         try:
-            slot = int(window.leECCSlot.text())
-            if slot > 31:
-                raise ValueError("Slot must be 0-31")
+            slot = get_ecc_slot()
 
 
             window.rbECCP256.setChecked(False)
@@ -497,14 +505,12 @@ def main():
 
             window.pteECCPubkey.setPlainText(key_info.public_key.hex())
 
-        except TropicSquareNoSession as e:
-            window.pteECCPubkey.setPlainText("No secure session established")
-        except TropicSquareError as e:
-            window.pteECCPubkey.setPlainText("Error: " + str(e))
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except ValueError as e:
-            window.pteECCPubkey.setPlainText("Error: " + str(e))
+            QtWidgets.QMessageBox.warning(window, "Invalid Slot", str(e))
         except Exception as e:
-            window.pteECCPubkey.setPlainText("Error: " + str(e))
+            QtWidgets.QMessageBox.critical(window, "ECC Read Failed", str(e))
 
     def get_ecc_curve():
         if window.rbECCP256.isChecked():
@@ -519,7 +525,7 @@ def main():
             return
 
         try:
-            slot = int(window.leECCSlot.text())
+            slot = get_ecc_slot()
             curve = get_ecc_curve()
             if curve is None:
                 raise ValueError("Select curve")
@@ -534,6 +540,8 @@ def main():
             QtWidgets.QMessageBox.information(window, "ECC Generate", "Key generated successfully")
         except TropicSquareNoSession:
             QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except ValueError as e:
+            QtWidgets.QMessageBox.warning(window, "Invalid Slot", str(e))
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "ECC Generate Failed", str(e))
 
@@ -543,7 +551,7 @@ def main():
             return
 
         try:
-            slot = int(window.leECCSlot.text())
+            slot = get_ecc_slot()
             curve = get_ecc_curve()
             if curve is None:
                 raise ValueError("Select curve")
@@ -569,6 +577,8 @@ def main():
             QtWidgets.QMessageBox.information(window, "ECC Store", "Key stored successfully")
         except TropicSquareNoSession:
             QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except ValueError as e:
+            QtWidgets.QMessageBox.warning(window, "Invalid Slot", str(e))
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "ECC Store Failed", str(e))
 
@@ -578,7 +588,7 @@ def main():
             return
 
         try:
-            slot = int(window.leECCSlot.text())
+            slot = get_ecc_slot()
             try:
                 ts.ecc_key_read(slot)
             except TropicSquareError as e:
@@ -592,6 +602,8 @@ def main():
             QtWidgets.QMessageBox.information(window, "ECC Erase", "Key erased successfully")
         except TropicSquareNoSession:
             QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except ValueError as e:
+            QtWidgets.QMessageBox.warning(window, "Invalid Slot", str(e))
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "ECC Erase Failed", str(e))
 
