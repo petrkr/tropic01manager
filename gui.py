@@ -171,6 +171,10 @@ def main():
         window.btnPing.setEnabled(connected)
         window.btnGetRandom.setEnabled(connected)
         window.btnECCRead.setEnabled(connected)
+        window.btnECCGenerate.setEnabled(connected)
+        window.btnECCStore.setEnabled(connected)
+        window.btnECCErase.setEnabled(connected)
+        window.leECCPrivateKey.setEnabled(connected)
 
     def on_driver_type_changed():
         """Update parameter labels and defaults when driver type changes"""
@@ -438,29 +442,33 @@ def main():
         try:
             slot = int(window.leECCSlot.text())
             if slot > 31:
-                raise ValueError("Number must be less than 256")
+                raise ValueError("Slot must be 0-31")
 
 
             window.rbECCP256.setChecked(False)
             window.rbECCEd25519.setChecked(False)
 
-            curve, origin, pubkey = ts.ecc_key_read(slot)
+            key_info = ts.ecc_key_read(slot)
 
-            if origin == 0x01:
+            if key_info.origin == 0x01:
                 window.lblECCKeySource.setText("Generated")
-            elif origin == 0x02:
+            elif key_info.origin == 0x02:
                 window.lblECCKeySource.setText("User stored")
             else:
                 window.lblECCKeySource.setText("Unknown")
 
-            if curve == ECC_CURVE_P256:
+            if key_info.curve == ECC_CURVE_P256:
                 window.rbECCP256.setChecked(True)
                 window.rbECCEd25519.setChecked(False)
-            elif curve == ECC_CURVE_ED25519:
+                window.lblECCCurveInfo.setText("P256")
+            elif key_info.curve == ECC_CURVE_ED25519:
                 window.rbECCP256.setChecked(False)
                 window.rbECCEd25519.setChecked(True)
+                window.lblECCCurveInfo.setText("Ed25519")
+            else:
+                window.lblECCCurveInfo.setText(f"Unknown (0x{key_info.curve:02X})")
 
-            window.pteECCPubkey.setPlainText(pubkey.hex())
+            window.pteECCPubkey.setPlainText(key_info.public_key.hex())
 
         except TropicSquareNoSession as e:
             window.pteECCPubkey.setPlainText("No secure session established")
@@ -470,6 +478,95 @@ def main():
             window.pteECCPubkey.setPlainText("Error: " + str(e))
         except Exception as e:
             window.pteECCPubkey.setPlainText("Error: " + str(e))
+
+    def get_ecc_curve():
+        if window.rbECCP256.isChecked():
+            return ECC_CURVE_P256
+        if window.rbECCEd25519.isChecked():
+            return ECC_CURVE_ED25519
+        return None
+
+    def on_btnECCGenerate_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+
+        try:
+            slot = int(window.leECCSlot.text())
+            curve = get_ecc_curve()
+            if curve is None:
+                raise ValueError("Select curve")
+            try:
+                ts.ecc_key_read(slot)
+                QtWidgets.QMessageBox.critical(window, "ECC Generate Failed", "Slot already contains a key")
+                return
+            except TropicSquareError:
+                pass
+            ts.ecc_key_generate(slot, curve)
+            on_btnECCRead_click()
+            QtWidgets.QMessageBox.information(window, "ECC Generate", "Key generated successfully")
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "ECC Generate Failed", str(e))
+
+    def on_btnECCStore_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+
+        try:
+            slot = int(window.leECCSlot.text())
+            curve = get_ecc_curve()
+            if curve is None:
+                raise ValueError("Select curve")
+
+            key_hex = window.leECCPrivateKey.text().strip()
+            key_hex = key_hex.replace(" ", "").replace("\n", "")
+            if not key_hex:
+                raise ValueError("Private key is empty")
+
+            key_bytes = bytes.fromhex(key_hex)
+            if len(key_bytes) != 32:
+                raise ValueError("Private key must be 32 bytes")
+
+            try:
+                ts.ecc_key_read(slot)
+                QtWidgets.QMessageBox.critical(window, "ECC Store Failed", "Slot already contains a key")
+                return
+            except TropicSquareError:
+                pass
+
+            ts.ecc_key_store(slot, curve, key_bytes)
+            on_btnECCRead_click()
+            QtWidgets.QMessageBox.information(window, "ECC Store", "Key stored successfully")
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "ECC Store Failed", str(e))
+
+    def on_btnECCErase_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+
+        try:
+            slot = int(window.leECCSlot.text())
+            try:
+                ts.ecc_key_read(slot)
+            except TropicSquareError as e:
+                QtWidgets.QMessageBox.critical(window, "ECC Erase Failed", f"Key not found: {e}")
+                return
+
+            ts.ecc_key_erase(slot)
+            window.lblECCKeySource.setText("")
+            window.lblECCCurveInfo.setText("")
+            window.pteECCPubkey.setPlainText("")
+            QtWidgets.QMessageBox.information(window, "ECC Erase", "Key erased successfully")
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "ECC Erase Failed", str(e))
 
 
     app = QtWidgets.QApplication(sys.argv)
@@ -491,6 +588,9 @@ def main():
     window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
 
     window.btnECCRead.clicked.connect(on_btnECCRead_click)
+    window.btnECCGenerate.clicked.connect(on_btnECCGenerate_click)
+    window.btnECCStore.clicked.connect(on_btnECCStore_click)
+    window.btnECCErase.clicked.connect(on_btnECCErase_click)
     window.leECCSlot.setValidator(QtGui.QIntValidator(0, 31))
 
     on_driver_type_changed()
