@@ -169,6 +169,46 @@
         </widget>
        </item>
        <item row="3" column="0">
+        <widget class="QLabel" name="labelPairingProfile">
+         <property name="text">
+          <string>Pairing key:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1" colspan="2">
+        <widget class="QComboBox" name="cmbPairingProfile"/>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="labelPairingIndex">
+         <property name="text">
+          <string>Custom index:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1" colspan="2">
+        <widget class="QLineEdit" name="lePairingIndex"/>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="labelPairingPriv">
+         <property name="text">
+          <string>Custom priv (hex):</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1" colspan="2">
+        <widget class="QLineEdit" name="lePairingPriv"/>
+       </item>
+       <item row="6" column="0">
+        <widget class="QLabel" name="labelPairingPub">
+         <property name="text">
+          <string>Custom pub (hex):</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="1" colspan="2">
+        <widget class="QLineEdit" name="lePairingPub"/>
+       </item>
+       <item row="7" column="0">
         <spacer name="verticalSpacerConnection">
          <property name="orientation">
           <enum>Qt::Orientation::Vertical</enum>

@@ -1,5 +1,12 @@
 from tropicsquare.constants.ecc import ECC_CURVE_ED25519, ECC_CURVE_P256
 from tropicsquare.constants import MCOUNTER_MAX, MEM_DATA_MAX_SIZE
+from tropicsquare.constants.pairing_keys import (
+    FACTORY_PAIRING_KEY_INDEX,
+    FACTORY_PAIRING_PRIVATE_KEY_PROD0,
+    FACTORY_PAIRING_PUBLIC_KEY_PROD0,
+    FACTORY_PAIRING_PRIVATE_KEY_ENG_SAMPLE,
+    FACTORY_PAIRING_PUBLIC_KEY_ENG_SAMPLE
+)
 from tropicsquare.ports.cpython import TropicSquareCPython
 from tropicsquare.exceptions import *
 from tropicsquare.transports.uart import UartTransport
@@ -101,15 +108,10 @@ def parse_certificate_info(cert_data):
         return (None, None, None)
 
 
-# Default factory pairing keys
-pkey_index_0 = 0x00 # Slot 0
-# Sample keys batch 1 (rev 0)
-#sh0priv = [0xd0,0x99,0x92,0xb1,0xf1,0x7a,0xbc,0x4d,0xb9,0x37,0x17,0x68,0xa2,0x7d,0xa0,0x5b,0x18,0xfa,0xb8,0x56,0x13,0xa7,0x84,0x2c,0xa6,0x4c,0x79,0x10,0xf2,0x2e,0x71,0x6b]
-#sh0pub  = [0xe7,0xf7,0x35,0xba,0x19,0xa3,0x3f,0xd6,0x73,0x23,0xab,0x37,0x26,0x2d,0xe5,0x36,0x08,0xca,0x57,0x85,0x76,0x53,0x43,0x52,0xe1,0x8f,0x64,0xe6,0x13,0xd3,0x8d,0x54]
-
-# Sample keys batch 2 (rev 1)
-sh0priv = [0x28,0x3F,0x5A,0x0F,0xFC,0x41,0xCF,0x50,0x98,0xA8,0xE1,0x7D,0xB6,0x37,0x2C,0x3C,0xAA,0xD1,0xEE,0xEE,0xDF,0x0F,0x75,0xBC,0x3F,0xBF,0xCD,0x9C,0xAB,0x3D,0xE9,0x72]
-sh0pub =  [0xF9,0x75,0xEB,0x3C,0x2F,0xD7,0x90,0xC9,0x6F,0x29,0x4F,0x15,0x57,0xA5,0x03,0x17,0x80,0xC9,0xAA,0xFA,0x14,0x0D,0xA2,0x8F,0x55,0xE7,0x51,0x57,0x37,0xB2,0x50,0x2C]
+# Default factory pairing keys (PH0 / PROD0)
+DEFAULT_PAIRING_INDEX = FACTORY_PAIRING_KEY_INDEX
+DEFAULT_PAIRING_PRIV = FACTORY_PAIRING_PRIVATE_KEY_PROD0
+DEFAULT_PAIRING_PUB = FACTORY_PAIRING_PUBLIC_KEY_PROD0
 
 
 import sys
@@ -130,6 +132,7 @@ def main():
     transport = None
     settings = QSettings("tropic01manager", "tropic01manager")
     settings_initialized = False
+    current_pairing_pubkey = None
 
     def close_transport():
         nonlocal transport
@@ -169,7 +172,8 @@ def main():
         window.btnSessionToggle.setText("Abort Session" if has_session else "Start Session")
 
         if has_session:
-            pubkey_prefix = " ".join(f"{b:02x}" for b in bytes(sh0pub)[:8])
+            pubkey = current_pairing_pubkey or DEFAULT_PAIRING_PUB
+            pubkey_prefix = " ".join(f"{b:02x}" for b in bytes(pubkey)[:8])
             window.lblSessionStatus.setTextFormat(QtCore.Qt.TextFormat.RichText)
             window.lblSessionStatus.setText(
                 f"Session Active <span style=\"color:#1f5fbf\">({pubkey_prefix})</span>"
@@ -261,6 +265,61 @@ def main():
         settings.setValue(f"connection/{driver_type}/param1", window.leParam1.text())
         settings.setValue(f"connection/{driver_type}/param2", window.leParam2.text())
 
+    def set_pairing_fields_visible(visible: bool):
+        window.labelPairingIndex.setVisible(visible)
+        window.lePairingIndex.setVisible(visible)
+        window.labelPairingPriv.setVisible(visible)
+        window.lePairingPriv.setVisible(visible)
+        window.labelPairingPub.setVisible(visible)
+        window.lePairingPub.setVisible(visible)
+
+    def on_pairing_profile_changed():
+        profile = window.cmbPairingProfile.currentData()
+        set_pairing_fields_visible(profile == "custom")
+        if settings_initialized:
+            settings.setValue("pairing/profile", profile)
+
+    def save_custom_pairing_params():
+        if not settings_initialized:
+            return
+        profile = window.cmbPairingProfile.currentData()
+        if profile != "custom":
+            return
+        settings.setValue("pairing/custom/index", window.lePairingIndex.text())
+        settings.setValue("pairing/custom/priv", window.lePairingPriv.text())
+        settings.setValue("pairing/custom/pub", window.lePairingPub.text())
+
+    def parse_hex_bytes(text: str, field_name: str) -> bytes:
+        cleaned = text.strip().replace(" ", "").replace("\n", "")
+        if not cleaned:
+            raise ValueError(f"{field_name} is required")
+        if len(cleaned) % 2 != 0:
+            raise ValueError(f"{field_name} must have even length")
+        try:
+            return bytes.fromhex(cleaned)
+        except ValueError:
+            raise ValueError(f"Invalid hex in {field_name}")
+
+    def get_selected_pairing_keys():
+        profile = window.cmbPairingProfile.currentData()
+        if profile == "prod0":
+            return (FACTORY_PAIRING_KEY_INDEX, FACTORY_PAIRING_PRIVATE_KEY_PROD0, FACTORY_PAIRING_PUBLIC_KEY_PROD0)
+        if profile == "eng":
+            return (FACTORY_PAIRING_KEY_INDEX, FACTORY_PAIRING_PRIVATE_KEY_ENG_SAMPLE, FACTORY_PAIRING_PUBLIC_KEY_ENG_SAMPLE)
+        if profile == "custom":
+            idx_text = window.lePairingIndex.text().strip()
+            if not idx_text:
+                raise ValueError("Custom index is required")
+            idx = int(idx_text)
+            if idx < 0 or idx > 3:
+                raise ValueError("Custom index must be 0-3")
+            priv = parse_hex_bytes(window.lePairingPriv.text(), "Custom priv")
+            pub = parse_hex_bytes(window.lePairingPub.text(), "Custom pub")
+            if len(priv) != 32 or len(pub) != 32:
+                raise ValueError("Custom priv/pub must be 32 bytes")
+            return (idx, priv, pub)
+        return (DEFAULT_PAIRING_INDEX, DEFAULT_PAIRING_PRIV, DEFAULT_PAIRING_PUB)
+
     settings_visible = False
 
     def set_connection_settings_visible(visible: bool):
@@ -350,7 +409,7 @@ def main():
 
     def on_disconnect_click():
         """Disconnect from device"""
-        nonlocal ts
+        nonlocal ts, current_pairing_pubkey
         try:
             if ts and hasattr(ts, "_secure_session") and ts._secure_session:
                 try:
@@ -359,6 +418,7 @@ def main():
                     pass
             ts = None
             close_transport()
+            current_pairing_pubkey = None
             update_connection_ui()
         except Exception as e:
             window.lblConnectionStatus.setText(f"Disconnect error: {str(e)}")
@@ -451,6 +511,7 @@ def main():
 
 
     def on_btnStartSecureSession_click():
+        nonlocal current_pairing_pubkey
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
@@ -461,7 +522,9 @@ def main():
             window.btnSessionToggle.setEnabled(False)
             QtWidgets.QApplication.processEvents()
 
-            if ts.start_secure_session(0, bytes(sh0priv), bytes(sh0pub)):
+            key_index, priv, pub = get_selected_pairing_keys()
+            if ts.start_secure_session(key_index, bytes(priv), bytes(pub)):
+                current_pairing_pubkey = pub
                 update_connection_ui()  # Update UI to show active session
         except TropicSquareHandshakeError as e:
             QtWidgets.QMessageBox.critical(window, "Handshake Error", f"Failed to start secure session:\n{str(e)}")
@@ -469,12 +532,16 @@ def main():
         except TropicSquareError as e:
             QtWidgets.QMessageBox.critical(window, "Error", f"Failed to start secure session:\n{str(e)}")
             update_connection_ui()
+        except ValueError as e:
+            QtWidgets.QMessageBox.critical(window, "Invalid Pairing Key", str(e))
+            update_connection_ui()
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Unexpected Error", f"Failed to start secure session:\n{str(e)}")
             update_connection_ui()
 
 
     def on_btnAbortSecureSession_click():
+        nonlocal current_pairing_pubkey
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
@@ -486,6 +553,7 @@ def main():
             QtWidgets.QApplication.processEvents()
 
             if ts.abort_secure_session():
+                current_pairing_pubkey = None
                 update_connection_ui()  # Update UI to show no session
         except Exception as e:
             QtWidgets.QMessageBox.warning(window, "Error", f"Failed to abort session:\n{str(e)}")
@@ -996,6 +1064,10 @@ def main():
     window.btnToggleConnectionSettings.clicked.connect(on_toggle_connection_settings)
     window.leParam1.textChanged.connect(save_connection_params)
     window.leParam2.textChanged.connect(save_connection_params)
+    window.cmbPairingProfile.currentTextChanged.connect(on_pairing_profile_changed)
+    window.lePairingIndex.textChanged.connect(save_custom_pairing_params)
+    window.lePairingPriv.textChanged.connect(save_custom_pairing_params)
+    window.lePairingPub.textChanged.connect(save_custom_pairing_params)
 
     # Connect device operation signals
     window.btnGetInfo.clicked.connect(on_btn_get_info_click)
@@ -1030,6 +1102,23 @@ def main():
     window.btnIConfigRead.clicked.connect(on_btnIConfigRead_click)
     window.btnRConfigWrite.clicked.connect(on_btnRConfigWrite_click)
     window.btnIConfigWrite.clicked.connect(on_btnIConfigWrite_click)
+
+    window.cmbPairingProfile.clear()
+    window.cmbPairingProfile.addItem("Factory PROD0 (PH0)", "prod0")
+    window.cmbPairingProfile.addItem("Factory ENG sample", "eng")
+    window.cmbPairingProfile.addItem("Custom", "custom")
+
+    saved_pairing = settings.value("pairing/profile", "prod0")
+    if saved_pairing:
+        index = window.cmbPairingProfile.findData(str(saved_pairing))
+        if index >= 0:
+            window.cmbPairingProfile.setCurrentIndex(index)
+
+    window.lePairingIndex.setText(str(settings.value("pairing/custom/index", "0")))
+    window.lePairingPriv.setText(str(settings.value("pairing/custom/priv", "")))
+    window.lePairingPub.setText(str(settings.value("pairing/custom/pub", "")))
+    window.lePairingIndex.setValidator(QtGui.QIntValidator(0, 3))
+    on_pairing_profile_changed()
 
     saved_driver = settings.value("connection/driver_type", "UART")
     if saved_driver:
