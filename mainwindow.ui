@@ -79,39 +79,19 @@
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="btnConnect">
+        <widget class="QPushButton" name="btnConnectToggle">
          <property name="text">
           <string>Connect</string>
          </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="btnDisconnect">
-         <property name="enabled">
-          <bool>false</bool>
-         </property>
-         <property name="text">
-          <string>Disconnect</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnStartSecureSession">
+        <widget class="QPushButton" name="btnSessionToggle">
          <property name="enabled">
           <bool>false</bool>
          </property>
          <property name="text">
           <string>Start Session</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnAbortSecureSession">
-         <property name="enabled">
-          <bool>false</bool>
-         </property>
-         <property name="text">
-          <string>Abort Session</string>
          </property>
         </widget>
        </item>

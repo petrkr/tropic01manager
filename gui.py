@@ -147,8 +147,8 @@ def main():
         has_session = connected and hasattr(ts, "_secure_session") and ts._secure_session is not None
 
         # Update connection controls
-        window.btnConnect.setEnabled(not connected)
-        window.btnDisconnect.setEnabled(connected)
+        window.btnConnectToggle.setEnabled(True)
+        window.btnConnectToggle.setText("Disconnect" if connected else "Connect")
 
         if connected:
             window.lblConnectionStatus.setText("Connected")
@@ -158,8 +158,8 @@ def main():
             window.lblConnectionStatus.setStyleSheet("color: red; font-weight: bold;")
 
         # Update secure session controls
-        window.btnStartSecureSession.setEnabled(connected and not has_session)
-        window.btnAbortSecureSession.setEnabled(connected and has_session)
+        window.btnSessionToggle.setEnabled(connected)
+        window.btnSessionToggle.setText("Abort Session" if has_session else "Start Session")
 
         if has_session:
             window.lblSessionStatus.setText("Session Active")
@@ -252,7 +252,7 @@ def main():
         # Show connecting status
         window.lblConnectionStatus.setText("Connecting...")
         window.lblConnectionStatus.setStyleSheet("color: orange; font-weight: bold;")
-        window.btnConnect.setEnabled(False)
+        window.btnConnectToggle.setEnabled(False)
         QtWidgets.QApplication.processEvents()  # Update UI immediately
 
         try:
@@ -426,7 +426,7 @@ def main():
         try:
             window.lblSessionStatus.setText("Starting...")
             window.lblSessionStatus.setStyleSheet("color: orange; font-weight: bold;")
-            window.btnStartSecureSession.setEnabled(False)
+            window.btnSessionToggle.setEnabled(False)
             QtWidgets.QApplication.processEvents()
 
             if ts.start_secure_session(0, bytes(sh0priv), bytes(sh0pub)):
@@ -450,7 +450,7 @@ def main():
         try:
             window.lblSessionStatus.setText("Aborting...")
             window.lblSessionStatus.setStyleSheet("color: orange; font-weight: bold;")
-            window.btnAbortSecureSession.setEnabled(False)
+            window.btnSessionToggle.setEnabled(False)
             QtWidgets.QApplication.processEvents()
 
             if ts.abort_secure_session():
@@ -458,6 +458,23 @@ def main():
         except Exception as e:
             QtWidgets.QMessageBox.warning(window, "Error", f"Failed to abort session:\n{str(e)}")
             update_connection_ui()
+
+    def on_btnConnectToggle_click():
+        connected = ts is not None
+        if connected:
+            on_disconnect_click()
+        else:
+            on_connect_click()
+
+    def on_btnSessionToggle_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+        has_session = hasattr(ts, "_secure_session") and ts._secure_session is not None
+        if has_session:
+            on_btnAbortSecureSession_click()
+        else:
+            on_btnStartSecureSession_click()
 
 
     def on_btnPing_click():
@@ -789,8 +806,8 @@ def main():
 
     # Connect connection management signals
     window.cmbDriverType.currentTextChanged.connect(on_driver_type_changed)
-    window.btnConnect.clicked.connect(on_connect_click)
-    window.btnDisconnect.clicked.connect(on_disconnect_click)
+    window.btnConnectToggle.clicked.connect(on_btnConnectToggle_click)
+    window.btnSessionToggle.clicked.connect(on_btnSessionToggle_click)
     window.btnToggleConnectionSettings.clicked.connect(on_toggle_connection_settings)
     window.leParam1.textChanged.connect(save_connection_params)
     window.leParam2.textChanged.connect(save_connection_params)
@@ -799,8 +816,6 @@ def main():
     window.btnGetInfo.clicked.connect(on_btn_get_info_click)
     window.btnSaveCert.clicked.connect(on_btn_save_cert_click)
     window.btnGetChipID.clicked.connect(on_btnGetChipID_click)
-    window.btnStartSecureSession.clicked.connect(on_btnStartSecureSession_click)
-    window.btnAbortSecureSession.clicked.connect(on_btnAbortSecureSession_click)
     window.btnPing.clicked.connect(on_btnPing_click)
     window.btnGetRandom.clicked.connect(on_btnbtnGetRandom_click)
     window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
