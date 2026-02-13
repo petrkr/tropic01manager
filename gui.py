@@ -115,6 +115,13 @@ sh0pub =  [0xF9,0x75,0xEB,0x3C,0x2F,0xD7,0x90,0xC9,0x6F,0x29,0x4F,0x15,0x57,0xA5
 import sys
 from PyQt6.QtCore import QSettings
 from PyQt6 import QtWidgets, uic, QtGui
+from tropicsquare.constants import config as cfg_constants
+from tropicsquare.config.uap_base import (
+    UapMultiSlotConfig,
+    UapSingleFieldConfig,
+    UapDualFieldConfig,
+    UapPermissionField
+)
 
 
 def main():
@@ -717,6 +724,159 @@ def main():
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "MCounter Update Failed", str(e))
 
+    def clear_layout(layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+            else:
+                child_layout = item.layout()
+                if child_layout:
+                    clear_layout(child_layout)
+
+    def add_permission_row(grid, row, label_text, field, editable=False):
+        label = QtWidgets.QLabel(label_text)
+        grid.addWidget(label, row, 0)
+        checkboxes = []
+        for i in range(4):
+            cb = QtWidgets.QCheckBox(f"P{i}")
+            cb.setChecked(field.get_slot_permission(i))
+            cb.setEnabled(editable)
+            grid.addWidget(cb, row, i + 1)
+            checkboxes.append(cb)
+        return checkboxes
+
+    def render_uap_permissions(parent_layout, config, editable=False):
+        grid = QtWidgets.QGridLayout()
+        header = QtWidgets.QLabel("Pairing key slots")
+        grid.addWidget(header, 0, 0)
+        for i in range(4):
+            grid.addWidget(QtWidgets.QLabel(f"P{i}"), 0, i + 1)
+
+        row = 1
+        fields = []
+        if isinstance(config, UapMultiSlotConfig):
+            for key in config.to_dict().keys():
+                label = key.replace("_", " ")
+                field = getattr(config, key)
+                checkboxes = add_permission_row(grid, row, label, field, editable=editable)
+                fields.append((key, checkboxes))
+                row += 1
+        elif isinstance(config, UapDualFieldConfig):
+            cfg_field = config.cfg_permissions
+            func_field = config.func_permissions
+            fields.append(("cfg_permissions", add_permission_row(grid, row, "cfg", cfg_field, editable=editable)))
+            row += 1
+            fields.append(("func_permissions", add_permission_row(grid, row, "func", func_field, editable=editable)))
+        elif isinstance(config, UapSingleFieldConfig):
+            fields.append(("permissions", add_permission_row(grid, row, "permissions", config.permissions, editable=editable)))
+        parent_layout.addLayout(grid)
+        return fields
+
+    def render_key_values(parent_layout, data):
+        form = QtWidgets.QFormLayout()
+        for key, value in data.items():
+            form.addRow(QtWidgets.QLabel(str(key)), QtWidgets.QLabel(str(value)))
+        parent_layout.addLayout(form)
+
+    def render_config_details(layout, config, editable=False):
+        clear_layout(layout)
+        if isinstance(config, (UapMultiSlotConfig, UapDualFieldConfig, UapSingleFieldConfig)):
+            return render_uap_permissions(layout, config, editable=editable)
+        try:
+            data = config.to_dict()
+        except Exception:
+            data = {"value": str(config)}
+        render_key_values(layout, data)
+        return []
+
+    def build_uap_config_from_ui(config, fields):
+        new_config = config.__class__(config._value)
+        for key, checkboxes in fields:
+            field = getattr(new_config, key)
+            for i, cb in enumerate(checkboxes):
+                field.set_slot_permission(i, cb.isChecked())
+            setattr(new_config, key, field)
+        return new_config
+
+    def get_cfg_constants():
+        items = []
+        for name, value in cfg_constants.__dict__.items():
+            if name.startswith("CFG_") and isinstance(value, int):
+                items.append((name, value))
+        return sorted(items, key=lambda x: x[1])
+
+    def on_btnRConfigRead_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+        try:
+            address = window.cmbRConfigReg.currentData()
+            config = ts.r_config_read(address)
+            window.lblRConfigRaw.setText(f"0x{config._value:08X}")
+            window._rconfig_current = config
+            window._rconfig_fields = render_config_details(window.layoutRConfigDetails, config, editable=True)
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "R-Config Read Failed", str(e))
+
+    def on_btnIConfigRead_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+        try:
+            address = window.cmbIConfigReg.currentData()
+            config = ts.i_config_read(address)
+            window.lblIConfigRaw.setText(f"0x{config._value:08X}")
+            window._iconfig_current = config
+            window._iconfig_fields = render_config_details(window.layoutIConfigDetails, config, editable=True)
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "I-Config Read Failed", str(e))
+
+    def on_btnRConfigWrite_click():
+        config = getattr(window, "_rconfig_current", None)
+        fields = getattr(window, "_rconfig_fields", [])
+        if config is None:
+            QtWidgets.QMessageBox.warning(window, "R-Config Write", "Read config first")
+            return
+        if not fields:
+            QtWidgets.QMessageBox.warning(window, "R-Config Write", "Write not supported for this config")
+            return
+        new_config = build_uap_config_from_ui(config, fields)
+        QtWidgets.QMessageBox.information(
+            window,
+            "R-Config Write (Mock)",
+            f"Planned value: 0x{new_config._value:08X}\n(Not written)"
+        )
+
+    def on_btnIConfigWrite_click():
+        config = getattr(window, "_iconfig_current", None)
+        fields = getattr(window, "_iconfig_fields", [])
+        if config is None:
+            QtWidgets.QMessageBox.warning(window, "I-Config Write", "Read config first")
+            return
+        if not fields:
+            QtWidgets.QMessageBox.warning(window, "I-Config Write", "Write not supported for this config")
+            return
+        confirm = QtWidgets.QMessageBox.warning(
+            window,
+            "I-Config Write",
+            "I-CONFIG is OTP. This is irreversible.\nContinue?",
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+        )
+        if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        new_config = build_uap_config_from_ui(config, fields)
+        QtWidgets.QMessageBox.information(
+            window,
+            "I-Config Write (Mock)",
+            f"Planned value: 0x{new_config._value:08X}\n(Not written)"
+        )
+
     def get_mem_slot():
         slot_text = window.leMemSlot.text().strip()
         if not slot_text:
@@ -836,6 +996,15 @@ def main():
 
     window.rbMemHex.setChecked(True)
     window.leMemSlot.setValidator(QtGui.QIntValidator(0, 511))
+
+    cfg_items = get_cfg_constants()
+    for name, value in cfg_items:
+        window.cmbRConfigReg.addItem(f"{name} (0x{value:02X})", value)
+        window.cmbIConfigReg.addItem(f"{name} (0x{value:02X})", value)
+    window.btnRConfigRead.clicked.connect(on_btnRConfigRead_click)
+    window.btnIConfigRead.clicked.connect(on_btnIConfigRead_click)
+    window.btnRConfigWrite.clicked.connect(on_btnRConfigWrite_click)
+    window.btnIConfigWrite.clicked.connect(on_btnIConfigWrite_click)
 
     saved_driver = settings.value("connection/driver_type", "UART")
     if saved_driver:

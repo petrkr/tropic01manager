@@ -1063,18 +1063,139 @@
         <item row="0" column="0">
          <widget class="QTabWidget" name="tabWidget_2">
           <property name="currentIndex">
-           <number>1</number>
+           <number>0</number>
           </property>
-          <widget class="QWidget" name="tab_10">
-           <attribute name="title">
-            <string>R-Config</string>
-           </attribute>
-          </widget>
-          <widget class="QWidget" name="tab_11">
-           <attribute name="title">
-            <string>I-Config</string>
-           </attribute>
-          </widget>
+         <widget class="QWidget" name="tab_10">
+          <attribute name="title">
+           <string>R-Config</string>
+          </attribute>
+          <layout class="QVBoxLayout" name="layoutRConfig">
+           <item>
+            <layout class="QHBoxLayout" name="layoutRConfigTop">
+             <item>
+              <widget class="QLabel" name="labelRConfigReg">
+               <property name="text">
+                <string>Register</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="cmbRConfigReg"/>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnRConfigRead">
+               <property name="text">
+                <string>Read</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnRConfigWrite">
+               <property name="text">
+                <string>Write</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="labelRConfigRawTitle">
+               <property name="text">
+                <string>Raw:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="lblRConfigRaw">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QScrollArea" name="scrollRConfig">
+             <property name="widgetResizable">
+              <bool>true</bool>
+             </property>
+             <widget class="QWidget" name="scrollRConfigContents">
+              <layout class="QVBoxLayout" name="layoutRConfigDetails"/>
+             </widget>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="tab_11">
+          <attribute name="title">
+           <string>I-Config</string>
+          </attribute>
+          <layout class="QVBoxLayout" name="layoutIConfig">
+           <item>
+            <widget class="QLabel" name="lblIConfigWarning">
+             <property name="text">
+              <string>I-CONFIG is OTP. Writes are irreversible.</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">color: #b00020; font-weight: bold;</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="layoutIConfigTop">
+             <item>
+              <widget class="QLabel" name="labelIConfigReg">
+               <property name="text">
+                <string>Register</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="cmbIConfigReg"/>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnIConfigRead">
+               <property name="text">
+                <string>Read</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnIConfigWrite">
+               <property name="text">
+                <string>Write</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="labelIConfigRawTitle">
+               <property name="text">
+                <string>Raw:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="lblIConfigRaw">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QScrollArea" name="scrollIConfig">
+             <property name="widgetResizable">
+              <bool>true</bool>
+             </property>
+             <widget class="QWidget" name="scrollIConfigContents">
+              <layout class="QVBoxLayout" name="layoutIConfigDetails"/>
+             </widget>
+            </widget>
+           </item>
+          </layout>
+         </widget>
          </widget>
         </item>
        </layout>
