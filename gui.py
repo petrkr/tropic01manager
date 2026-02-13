@@ -113,6 +113,7 @@ sh0pub =  [0xF9,0x75,0xEB,0x3C,0x2F,0xD7,0x90,0xC9,0x6F,0x29,0x4F,0x15,0x57,0xA5
 
 
 import sys
+from PyQt6.QtCore import QSettings
 from PyQt6 import QtWidgets, uic, QtGui
 
 
@@ -120,6 +121,8 @@ def main():
     # Application starts without device connection
     ts = None
     transport = None
+    settings = QSettings("tropic01manager", "tropic01manager")
+    settings_initialized = False
 
     def close_transport():
         nonlocal transport
@@ -196,18 +199,35 @@ def main():
         if driver_type == "UART":
             window.lblParam1.setText("Port:")
             window.lblParam2.setText("Baudrate:")
-            window.leParam1.setText("/dev/ttyACM1")
-            window.leParam2.setText("115200")
+            default_param1 = "/dev/ttyACM1"
+            default_param2 = "115200"
         elif driver_type == "Network":
             window.lblParam1.setText("Host:")
             window.lblParam2.setText("Port:")
-            window.leParam1.setText("localhost")
-            window.leParam2.setText("12345")
+            default_param1 = "localhost"
+            default_param2 = "12345"
         elif driver_type == "TCP":
             window.lblParam1.setText("Host:")
             window.lblParam2.setText("Port:")
-            window.leParam1.setText("127.0.0.1")
-            window.leParam2.setText("28992")
+            default_param1 = "127.0.0.1"
+            default_param2 = "28992"
+        else:
+            default_param1 = ""
+            default_param2 = ""
+
+        param1 = settings.value(f"connection/{driver_type}/param1", default_param1)
+        param2 = settings.value(f"connection/{driver_type}/param2", default_param2)
+        window.leParam1.setText(str(param1))
+        window.leParam2.setText(str(param2))
+        if settings_initialized:
+            settings.setValue("connection/driver_type", driver_type)
+
+    def save_connection_params():
+        if not settings_initialized:
+            return
+        driver_type = window.cmbDriverType.currentText()
+        settings.setValue(f"connection/{driver_type}/param1", window.leParam1.text())
+        settings.setValue(f"connection/{driver_type}/param2", window.leParam2.text())
 
     settings_visible = False
 
@@ -772,6 +792,8 @@ def main():
     window.btnConnect.clicked.connect(on_connect_click)
     window.btnDisconnect.clicked.connect(on_disconnect_click)
     window.btnToggleConnectionSettings.clicked.connect(on_toggle_connection_settings)
+    window.leParam1.textChanged.connect(save_connection_params)
+    window.leParam2.textChanged.connect(save_connection_params)
 
     # Connect device operation signals
     window.btnGetInfo.clicked.connect(on_btn_get_info_click)
@@ -800,6 +822,10 @@ def main():
     window.rbMemHex.setChecked(True)
     window.leMemSlot.setValidator(QtGui.QIntValidator(0, 511))
 
+    saved_driver = settings.value("connection/driver_type", "UART")
+    if saved_driver:
+        window.cmbDriverType.setCurrentText(str(saved_driver))
+    settings_initialized = True
     on_driver_type_changed()
     set_connection_settings_visible(False)
     window.btnToggleConnectionSettings.setText("Connection...")
