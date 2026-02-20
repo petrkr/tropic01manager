@@ -841,13 +841,36 @@ def main():
         return checkboxes
 
     def render_uap_permissions(parent_layout, config, editable=False):
-        grid = QtWidgets.QGridLayout()
-        header = QtWidgets.QLabel("Pairing key slots")
-        grid.addWidget(header, 0, 0)
-        for i in range(4):
-            grid.addWidget(QtWidgets.QLabel(f"P{i}"), 0, i + 1)
+        wrapper = QtWidgets.QVBoxLayout()
+        wrapper.setContentsMargins(0, 0, 0, 0)
+        wrapper.setSpacing(6)
 
-        row = 1
+        header_row = QtWidgets.QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header_row.setSpacing(12)
+        header_title = QtWidgets.QLabel("Pairing key slots")
+        header_title.setStyleSheet("font-weight: bold;")
+        header_row.addWidget(header_title)
+        header_row.addStretch(1)
+        for i in range(4):
+            h = QtWidgets.QLabel(f"P{i}")
+            h.setAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter | QtCore.Qt.AlignmentFlag.AlignVCenter)
+            h.setMinimumWidth(36)
+            header_row.addWidget(h)
+        wrapper.addLayout(header_row)
+
+        line = QtWidgets.QFrame()
+        line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+        line.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
+        wrapper.addWidget(line)
+
+        grid = QtWidgets.QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(6)
+        grid.setColumnStretch(0, 1)
+
+        row = 0
         fields = []
         if isinstance(config, UapMultiSlotConfig):
             for key in config.to_dict().keys():
@@ -864,7 +887,10 @@ def main():
             fields.append(("func_permissions", add_permission_row(grid, row, "func", func_field, editable=editable)))
         elif isinstance(config, UapSingleFieldConfig):
             fields.append(("permissions", add_permission_row(grid, row, "permissions", config.permissions, editable=editable)))
-        parent_layout.addLayout(grid)
+        wrapper.addLayout(grid)
+        wrapper.addStretch(1)
+
+        parent_layout.addLayout(wrapper)
         return fields
 
     def render_key_values(parent_layout, data):
