@@ -1243,11 +1243,6 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="tab_8">
-       <attribute name="title">
-        <string>Pairing Keys</string>
-       </attribute>
-      </widget>
      </widget>
     </item>
    </layout>
