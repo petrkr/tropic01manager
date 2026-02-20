@@ -133,9 +133,9 @@ def main():
     settings = QSettings("tropic01manager", "tropic01manager")
     settings_initialized = False
     current_pairing_pubkey = None
-    simulated_invalidated_slots = set()
     pairing_slot_cards = {}
     pairing_slot_states = {}
+    pairing_slot_pubkey_prefix = {}
 
     def close_transport():
         nonlocal transport
@@ -1095,6 +1095,9 @@ def main():
     def has_secure_session():
         return ts is not None and hasattr(ts, "_secure_session") and ts._secure_session is not None
 
+    def format_pubkey_prefix(key: bytes) -> str:
+        return " ".join(f"{b:02x}" for b in key[:8])
+
     def refresh_pairing_slot_card(slot: int):
         card = pairing_slot_cards.get(slot)
         if not card:
@@ -1116,7 +1119,11 @@ def main():
         btn_invalidate.setVisible(False)
 
         if state == "full":
-            status.setText("● Full")
+            prefix = pairing_slot_pubkey_prefix.get(slot, "")
+            if prefix:
+                status.setText(f"● Full ({prefix})")
+            else:
+                status.setText("● Full")
             status.setStyleSheet("color: #2e7d32; font-weight: bold;")
             btn_show.setVisible(True)
             btn_invalidate.setVisible(True)
@@ -1242,22 +1249,19 @@ def main():
             return
         try:
             slot = get_pairing_key_slot_for_overview(slot)
-            if slot in simulated_invalidated_slots:
-                pairing_slot_states[slot] = "invalidated"
-                QtWidgets.QMessageBox.information(window, "Pairing Key Read", f"Slot {slot} is invalidated.")
-                refresh_pairing_slot_card(slot)
-                return
             key = ts.pairing_key_read(slot)
             pairing_slot_states[slot] = "full"
+            pairing_slot_pubkey_prefix[slot] = format_pubkey_prefix(key)
             QtWidgets.QMessageBox.information(window, f"Pairing Key Slot {slot}", key.hex())
             refresh_pairing_slot_card(slot)
         except TropicSquarePairingKeyEmptyError:
             pairing_slot_states[slot] = "empty"
+            pairing_slot_pubkey_prefix.pop(slot, None)
             QtWidgets.QMessageBox.information(window, "Pairing Key Read", f"Slot {slot} is empty.")
             refresh_pairing_slot_card(slot)
         except TropicSquarePairingKeyInvalidError:
-            simulated_invalidated_slots.add(slot)
             pairing_slot_states[slot] = "invalidated"
+            pairing_slot_pubkey_prefix.pop(slot, None)
             QtWidgets.QMessageBox.information(window, "Pairing Key Read", f"Slot {slot} is invalidated.")
             refresh_pairing_slot_card(slot)
         except Exception as e:
@@ -1286,13 +1290,6 @@ def main():
         except ValueError as e:
             QtWidgets.QMessageBox.warning(window, "Invalid Input", str(e))
             return
-        if slot in simulated_invalidated_slots:
-            QtWidgets.QMessageBox.critical(
-                window,
-                "Pairing Key Write Failed",
-                f"Slot {slot} is invalidated and cannot be modified."
-            )
-            return
         confirm = QtWidgets.QMessageBox.warning(
             window,
             "Pairing Key Write",
@@ -1303,8 +1300,9 @@ def main():
             return
         try:
             try:
-                ts.pairing_key_read(slot)
+                existing = ts.pairing_key_read(slot)
                 pairing_slot_states[slot] = "full"
+                pairing_slot_pubkey_prefix[slot] = format_pubkey_prefix(existing)
                 refresh_pairing_slot_card(slot)
                 QtWidgets.QMessageBox.critical(
                     window,
@@ -1316,6 +1314,7 @@ def main():
                 pass
             ts.pairing_key_write(slot, key)
             pairing_slot_states[slot] = "full"
+            pairing_slot_pubkey_prefix[slot] = format_pubkey_prefix(key)
             refresh_pairing_slot_card(slot)
             QtWidgets.QMessageBox.information(window, "Pairing Key Write", "Public key written successfully")
         except TropicSquareNoSession:
@@ -1353,20 +1352,19 @@ def main():
                 window.pbPairingSlotsRefresh.setValue(slot)
                 QtWidgets.QApplication.processEvents()
 
-                if slot in simulated_invalidated_slots:
-                    pairing_slot_states[slot] = "invalidated"
-                    refresh_pairing_slot_card(slot)
-                    continue
                 try:
-                    ts.pairing_key_read(slot)
+                    key = ts.pairing_key_read(slot)
                     pairing_slot_states[slot] = "full"
+                    pairing_slot_pubkey_prefix[slot] = format_pubkey_prefix(key)
                 except TropicSquarePairingKeyEmptyError:
                     pairing_slot_states[slot] = "empty"
+                    pairing_slot_pubkey_prefix.pop(slot, None)
                 except TropicSquarePairingKeyInvalidError:
-                    simulated_invalidated_slots.add(slot)
                     pairing_slot_states[slot] = "invalidated"
+                    pairing_slot_pubkey_prefix.pop(slot, None)
                 except Exception:
                     pairing_slot_states[slot] = "unknown"
+                    pairing_slot_pubkey_prefix.pop(slot, None)
                 refresh_pairing_slot_card(slot)
 
             window.pbPairingSlotsRefresh.setValue(total)
@@ -1376,9 +1374,6 @@ def main():
 
     def on_btnPairingKeyInvalidate_click(slot):
         slot = get_pairing_key_slot_for_overview(slot)
-        if slot in simulated_invalidated_slots:
-            QtWidgets.QMessageBox.information(window, "Pairing Key Invalidate", f"Slot {slot} is already invalidated.")
-            return
         confirm = QtWidgets.QMessageBox.warning(
             window,
             "Pairing Key Invalidate",
@@ -1387,11 +1382,21 @@ def main():
         )
         if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
             return
-        # Simulated invalidation until API command is implemented.
-        simulated_invalidated_slots.add(slot)
-        pairing_slot_states[slot] = "invalidated"
-        QtWidgets.QMessageBox.information(window, "Pairing Key Invalidate", f"Slot {slot} invalidated (simulated).")
-        refresh_pairing_slot_card(slot)
+        try:
+            ts.pairing_key_invalidate(slot)
+            pairing_slot_states[slot] = "invalidated"
+            pairing_slot_pubkey_prefix.pop(slot, None)
+            QtWidgets.QMessageBox.information(window, "Pairing Key Invalidate", f"Slot {slot} invalidated.")
+            refresh_pairing_slot_card(slot)
+        except TropicSquareNoSession:
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+        except TropicSquarePairingKeyInvalidError:
+            pairing_slot_states[slot] = "invalidated"
+            pairing_slot_pubkey_prefix.pop(slot, None)
+            QtWidgets.QMessageBox.information(window, "Pairing Key Invalidate", f"Slot {slot} is already invalidated.")
+            refresh_pairing_slot_card(slot)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Pairing Key Invalidate Failed", str(e))
 
 
     app = QtWidgets.QApplication(sys.argv)
