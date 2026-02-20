@@ -538,6 +538,7 @@ def main():
             key_index, priv, pub = get_selected_pairing_keys()
             if ts.start_secure_session(key_index, bytes(priv), bytes(pub)):
                 current_pairing_pubkey = pub
+                reset_pairing_keys_state()
                 update_connection_ui()  # Update UI to show active session
         except TropicSquareHandshakeError as e:
             QtWidgets.QMessageBox.critical(window, "Handshake Error", f"Failed to start secure session:\n{str(e)}")
@@ -1094,6 +1095,12 @@ def main():
 
     def has_secure_session():
         return ts is not None and hasattr(ts, "_secure_session") and ts._secure_session is not None
+
+    def reset_pairing_keys_state():
+        for slot in range(PAIRING_KEY_MAX + 1):
+            pairing_slot_states[slot] = "unknown"
+        pairing_slot_pubkey_prefix.clear()
+        refresh_pairing_keys_overview()
 
     def format_pubkey_prefix(key: bytes) -> str:
         return " ".join(f"{b:02x}" for b in key[:8])
