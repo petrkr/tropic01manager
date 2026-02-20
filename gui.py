@@ -1113,10 +1113,12 @@ def main():
         btn_write = card["btn_write"]
         btn_show = card["btn_show"]
         btn_invalidate = card["btn_invalidate"]
+        btn_refresh_one = card["btn_refresh_one"]
 
         btn_write.setVisible(False)
         btn_show.setVisible(False)
         btn_invalidate.setVisible(False)
+        btn_refresh_one.setVisible(False)
 
         if state == "full":
             prefix = pairing_slot_pubkey_prefix.get(slot, "")
@@ -1146,6 +1148,8 @@ def main():
         else:
             status.setText("● Unknown")
             status.setStyleSheet("color: #666666; font-weight: bold;")
+            btn_refresh_one.setVisible(True)
+            btn_refresh_one.setEnabled(True)
 
     def refresh_pairing_keys_overview():
         for slot in range(PAIRING_KEY_MAX + 1):
@@ -1161,7 +1165,7 @@ def main():
         top_row = QtWidgets.QHBoxLayout()
         top_row.setContentsMargins(0, 0, 0, 0)
         top_row.setSpacing(8)
-        btn_refresh = QtWidgets.QPushButton("Refresh")
+        btn_refresh = QtWidgets.QPushButton("Refresh All")
         progress = QtWidgets.QProgressBar()
         progress.setMinimum(0)
         progress.setMaximum(PAIRING_KEY_MAX + 1)
@@ -1201,9 +1205,11 @@ def main():
             btn_write = QtWidgets.QPushButton("Write")
             btn_show = QtWidgets.QPushButton("Show")
             btn_invalidate = QtWidgets.QPushButton("Invalidate")
+            btn_refresh_one = QtWidgets.QPushButton("Refresh")
             action_row.addWidget(btn_write)
             action_row.addWidget(btn_show)
             action_row.addWidget(btn_invalidate)
+            action_row.addWidget(btn_refresh_one)
 
             vbox.addWidget(title)
             vbox.addWidget(status)
@@ -1218,12 +1224,14 @@ def main():
                 "btn_write": btn_write,
                 "btn_show": btn_show,
                 "btn_invalidate": btn_invalidate,
+                "btn_refresh_one": btn_refresh_one,
             }
             pairing_slot_states.setdefault(slot, "unknown")
 
             btn_write.clicked.connect(lambda _=False, s=slot: on_btnPairingKeyWriteFromOverview_click(s))
             btn_show.clicked.connect(lambda _=False, s=slot: on_btnPairingKeyShowFromOverview_click(s))
             btn_invalidate.clicked.connect(lambda _=False, s=slot: on_btnPairingKeyInvalidate_click(s))
+            btn_refresh_one.clicked.connect(lambda _=False, s=slot: on_btnPairingSlotRefresh_click(s))
 
         tab_layout.addWidget(overview_group)
         tab_layout.addStretch(1)
@@ -1371,6 +1379,33 @@ def main():
             window.lblPairingSlotsRefresh.setText("Done")
         finally:
             window.btnPairingSlotsRefresh.setEnabled(True)
+
+    def on_btnPairingSlotRefresh_click(slot):
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+        if not has_secure_session():
+            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
+            return
+
+        slot = get_pairing_key_slot_for_overview(slot)
+        window.lblPairingSlotsRefresh.setText(f"Reading slot {slot + 1}/{PAIRING_KEY_MAX + 1}...")
+        QtWidgets.QApplication.processEvents()
+        try:
+            key = ts.pairing_key_read(slot)
+            pairing_slot_states[slot] = "full"
+            pairing_slot_pubkey_prefix[slot] = format_pubkey_prefix(key)
+        except TropicSquarePairingKeyEmptyError:
+            pairing_slot_states[slot] = "empty"
+            pairing_slot_pubkey_prefix.pop(slot, None)
+        except TropicSquarePairingKeyInvalidError:
+            pairing_slot_states[slot] = "invalidated"
+            pairing_slot_pubkey_prefix.pop(slot, None)
+        except Exception:
+            pairing_slot_states[slot] = "unknown"
+            pairing_slot_pubkey_prefix.pop(slot, None)
+        refresh_pairing_slot_card(slot)
+        window.lblPairingSlotsRefresh.setText("Done")
 
     def on_btnPairingKeyInvalidate_click(slot):
         slot = get_pairing_key_slot_for_overview(slot)
