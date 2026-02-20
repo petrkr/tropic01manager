@@ -241,13 +241,6 @@
        </attribute>
        <layout class="QVBoxLayout" name="verticalLayout">
         <item>
-         <widget class="QPushButton" name="btnGetChipID">
-          <property name="text">
-           <string>Get Chip ID</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="QGroupBox" name="groupBoxChipInfo">
           <property name="title">
            <string>Chip Information</string>

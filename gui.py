@@ -207,7 +207,6 @@ def main():
         # Enable/disable device operation buttons based on connection
         window.btnGetInfo.setEnabled(connected)
         window.btnSaveCert.setEnabled(connected)
-        window.btnGetChipID.setEnabled(connected)
         window.btnPing.setEnabled(connected)
         window.btnGetRandom.setEnabled(connected)
         window.btnECCRead.setEnabled(connected)
@@ -379,7 +378,7 @@ def main():
 
             validation_thread = threading.Thread(target=validate_device, daemon=True)
             validation_thread.start()
-            validation_thread.join(timeout=3.0)
+            validation_thread.join(timeout=10.0)
 
             if validation_thread.is_alive():
                 raise ConnectionError(
@@ -392,6 +391,12 @@ def main():
                     f"Device validation failed - not a TROPIC01: {error_msg}"
                 )
 
+            window.lblConnectionStatus.setText("Getting chip ID...")
+            window.lblConnectionStatus.setStyleSheet("color: orange; font-weight: bold;")
+            window.lblConnectionStatus.repaint()
+            window.repaint()
+            QtWidgets.QApplication.processEvents()
+            refresh_chip_id()
             update_connection_ui()
 
         except ValueError as e:
@@ -467,10 +472,9 @@ def main():
                 f.write(bytes(ts.certificate))
 
 
-    def on_btnGetChipID_click():
+    def refresh_chip_id():
         """Get and display chip ID information"""
         if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
 
         try:
@@ -1098,7 +1102,6 @@ def main():
     # Connect device operation signals
     window.btnGetInfo.clicked.connect(on_btn_get_info_click)
     window.btnSaveCert.clicked.connect(on_btn_save_cert_click)
-    window.btnGetChipID.clicked.connect(on_btnGetChipID_click)
     window.btnPing.clicked.connect(on_btnPing_click)
     window.btnGetRandom.clicked.connect(on_btnbtnGetRandom_click)
     window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
