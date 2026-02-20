@@ -366,15 +366,21 @@ def main():
 
             ts = TropicSquareCPython(transport)
 
-            # Validate device with timeout
-            validation_result = {"success": False, "error": None}
+            # Validate device with timeout and fetch Chip ID in one pass
+            validation_result = {"success": False, "error": None, "chip_id": None}
 
             def validate_device():
                 try:
-                    _ = ts.riscv_fw_version
+                    validation_result["chip_id"] = ts.chipid
                     validation_result["success"] = True
                 except Exception as e:
                     validation_result["error"] = str(e)
+
+            window.lblConnectionStatus.setText("Getting chip ID...")
+            window.lblConnectionStatus.setStyleSheet("color: orange; font-weight: bold;")
+            window.lblConnectionStatus.repaint()
+            window.repaint()
+            QtWidgets.QApplication.processEvents()
 
             validation_thread = threading.Thread(target=validate_device, daemon=True)
             validation_thread.start()
@@ -382,21 +388,16 @@ def main():
 
             if validation_thread.is_alive():
                 raise ConnectionError(
-                    "Device validation timeout - device not responding or wrong device type"
+                    "Chip ID timeout - device not responding"
                 )
 
             if not validation_result["success"]:
                 error_msg = validation_result["error"] or "Unknown error"
                 raise ConnectionError(
-                    f"Device validation failed - not a TROPIC01: {error_msg}"
+                    f"Chip ID read failed: {error_msg}"
                 )
 
-            window.lblConnectionStatus.setText("Getting chip ID...")
-            window.lblConnectionStatus.setStyleSheet("color: orange; font-weight: bold;")
-            window.lblConnectionStatus.repaint()
-            window.repaint()
-            QtWidgets.QApplication.processEvents()
-            refresh_chip_id()
+            refresh_chip_id(validation_result["chip_id"])
             update_connection_ui()
 
         except ValueError as e:
@@ -472,14 +473,15 @@ def main():
                 f.write(bytes(ts.certificate))
 
 
-    def refresh_chip_id():
+    def refresh_chip_id(chip_id=None):
         """Get and display chip ID information"""
-        if not ts:
+        if chip_id is None and not ts:
             return
 
         try:
             # Get parsed chip ID (chipid is a property, not a method)
-            chip_id = ts.chipid
+            if chip_id is None:
+                chip_id = ts.chipid
 
             # Display chip information
             window.lblChipIDVersion.setText('.'.join(map(str, chip_id.chip_id_version)))
