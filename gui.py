@@ -133,6 +133,7 @@ def main():
     settings = QSettings("tropic01manager", "tropic01manager")
     settings_initialized = False
     current_pairing_pubkey = None
+    current_pairing_index = None
     pairing_slot_cards = {}
     pairing_slot_states = {}
     pairing_slot_pubkey_prefix = {}
@@ -177,9 +178,10 @@ def main():
         if has_session:
             pubkey = current_pairing_pubkey or DEFAULT_PAIRING_PUB
             pubkey_prefix = " ".join(f"{b:02x}" for b in bytes(pubkey)[:8])
+            key_index = current_pairing_index if current_pairing_index is not None else "?"
             window.lblSessionStatus.setTextFormat(QtCore.Qt.TextFormat.RichText)
             window.lblSessionStatus.setText(
-                f"Session Active <span style=\"color:#1f5fbf\">({pubkey_prefix})</span>"
+                f"Session Active <span style=\"color:#1f5fbf\">(Slot: {key_index}, Key: {pubkey_prefix})</span>"
             )
             window.lblSessionStatus.setStyleSheet("color: green; font-weight: bold;")
         else:
@@ -422,7 +424,7 @@ def main():
 
     def on_disconnect_click():
         """Disconnect from device"""
-        nonlocal ts, current_pairing_pubkey
+        nonlocal ts, current_pairing_pubkey, current_pairing_index
         try:
             if ts and hasattr(ts, "_secure_session") and ts._secure_session:
                 try:
@@ -432,6 +434,7 @@ def main():
             ts = None
             close_transport()
             current_pairing_pubkey = None
+            current_pairing_index = None
             update_connection_ui()
         except Exception as e:
             window.lblConnectionStatus.setText(f"Disconnect error: {str(e)}")
@@ -524,10 +527,26 @@ def main():
 
 
     def on_btnStartSecureSession_click():
-        nonlocal current_pairing_pubkey
+        nonlocal current_pairing_pubkey, current_pairing_index
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
+
+        def format_start_session_error_message(err: Exception) -> str:
+            msg = str(err)
+            msg_l = msg.lower()
+            if (
+                "status: 0x79" in msg_l
+                or "handshake error" in msg_l
+                or "authentication tag mismatch" in msg_l
+            ):
+                return (
+                    "Failed to start secure session:\n"
+                    f"{msg}\n\n"
+                    "Likely cause: pairing authentication failed.\n"
+                    "Check selected pairing slot and private/public key pair for this chip."
+                )
+            return f"Failed to start secure session:\n{msg}"
 
         try:
             window.lblSessionStatus.setText("Starting...")
@@ -538,24 +557,25 @@ def main():
             key_index, priv, pub = get_selected_pairing_keys()
             if ts.start_secure_session(key_index, bytes(priv), bytes(pub)):
                 current_pairing_pubkey = pub
+                current_pairing_index = key_index
                 reset_pairing_keys_state()
                 update_connection_ui()  # Update UI to show active session
         except TropicSquareHandshakeError as e:
-            QtWidgets.QMessageBox.critical(window, "Handshake Error", f"Failed to start secure session:\n{str(e)}")
+            QtWidgets.QMessageBox.critical(window, "Handshake Error", format_start_session_error_message(e))
             update_connection_ui()
         except TropicSquareError as e:
-            QtWidgets.QMessageBox.critical(window, "Error", f"Failed to start secure session:\n{str(e)}")
+            QtWidgets.QMessageBox.critical(window, "Error", format_start_session_error_message(e))
             update_connection_ui()
         except ValueError as e:
             QtWidgets.QMessageBox.critical(window, "Invalid Pairing Key", str(e))
             update_connection_ui()
         except Exception as e:
-            QtWidgets.QMessageBox.critical(window, "Unexpected Error", f"Failed to start secure session:\n{str(e)}")
+            QtWidgets.QMessageBox.critical(window, "Unexpected Error", format_start_session_error_message(e))
             update_connection_ui()
 
 
     def on_btnAbortSecureSession_click():
-        nonlocal current_pairing_pubkey
+        nonlocal current_pairing_pubkey, current_pairing_index
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
@@ -568,6 +588,7 @@ def main():
 
             if ts.abort_secure_session():
                 current_pairing_pubkey = None
+                current_pairing_index = None
                 update_connection_ui()  # Update UI to show no session
         except Exception as e:
             QtWidgets.QMessageBox.warning(window, "Error", f"Failed to abort session:\n{str(e)}")
@@ -1109,6 +1130,7 @@ def main():
         card = pairing_slot_cards.get(slot)
         if not card:
             return
+        frame = card["frame"]
         cached_state = pairing_slot_states.get(slot, "unknown")
         if ts is None:
             state = "disconnected"
@@ -1128,33 +1150,75 @@ def main():
         btn_refresh_one.setVisible(False)
 
         if state == "full":
+            frame_selector = f"QFrame#{frame.objectName()}"
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #2e7d32; border-radius: 8px; padding: 8px; background-color: rgba(46, 125, 50, 0.13); }}"
+            )
             prefix = pairing_slot_pubkey_prefix.get(slot, "")
             if prefix:
                 status.setText(f"● Full ({prefix})")
             else:
                 status.setText("● Full")
-            status.setStyleSheet("color: #2e7d32; font-weight: bold;")
+            status.setStyleSheet(
+                "color: #2e7d32; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
             btn_show.setVisible(True)
             btn_invalidate.setVisible(True)
             btn_show.setEnabled(True)
             btn_invalidate.setEnabled(True)
         elif state == "empty":
+            frame_selector = f"QFrame#{frame.objectName()}"
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #c07a00; border-radius: 8px; padding: 8px; background-color: rgba(192, 122, 0, 0.11); }}"
+            )
             status.setText("● Empty")
-            status.setStyleSheet("color: #c07a00; font-weight: bold;")
+            status.setStyleSheet(
+                "color: #c07a00; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
             btn_write.setVisible(True)
             btn_write.setEnabled(True)
         elif state == "invalidated":
+            frame_selector = f"QFrame#{frame.objectName()}"
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #b00020; border-radius: 8px; padding: 8px; background-color: rgba(176, 0, 32, 0.11); }}"
+            )
             status.setText("● Invalidated")
-            status.setStyleSheet("color: #b00020; font-weight: bold;")
+            status.setStyleSheet(
+                "color: #b00020; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
         elif state == "no-session":
+            frame_selector = f"QFrame#{frame.objectName()}"
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #666666; border-radius: 8px; padding: 8px; background-color: rgba(102, 102, 102, 0.09); }}"
+            )
             status.setText("● No session")
-            status.setStyleSheet("color: #666666; font-weight: bold;")
+            status.setStyleSheet(
+                "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
         elif state == "disconnected":
+            frame_selector = f"QFrame#{frame.objectName()}"
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #666666; border-radius: 8px; padding: 8px; background-color: rgba(102, 102, 102, 0.09); }}"
+            )
             status.setText("● Disconnected")
-            status.setStyleSheet("color: #666666; font-weight: bold;")
+            status.setStyleSheet(
+                "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
         else:
+            frame_selector = f"QFrame#{frame.objectName()}"
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #7a7a7a; border-radius: 8px; padding: 8px; background-color: rgba(122, 122, 122, 0.11); }}"
+            )
             status.setText("● Unknown")
-            status.setStyleSheet("color: #666666; font-weight: bold;")
+            status.setStyleSheet(
+                "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
             btn_refresh_one.setVisible(True)
             btn_refresh_one.setEnabled(True)
 
@@ -1199,14 +1263,21 @@ def main():
 
         for slot in range(PAIRING_KEY_MAX + 1):
             frame = QtWidgets.QFrame()
+            frame.setObjectName(f"pairingSlotFrame{slot}")
             frame.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
             frame.setStyleSheet("QFrame { border: 1px solid #bdbdbd; border-radius: 8px; padding: 8px; }")
             vbox = QtWidgets.QVBoxLayout(frame)
 
             title = QtWidgets.QLabel(f"Slot {slot}")
-            title.setStyleSheet("font-weight: bold;")
+            title.setStyleSheet(
+                "font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
             status = QtWidgets.QLabel("● Unknown")
-            status.setStyleSheet("color: #666666; font-weight: bold;")
+            status.setStyleSheet(
+                "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
 
             action_row = QtWidgets.QHBoxLayout()
             btn_write = QtWidgets.QPushButton("Write")
@@ -1227,6 +1298,7 @@ def main():
             overview_layout.addWidget(frame, row, col)
 
             pairing_slot_cards[slot] = {
+                "frame": frame,
                 "status": status,
                 "btn_write": btn_write,
                 "btn_show": btn_show,
