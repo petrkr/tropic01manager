@@ -2267,41 +2267,52 @@ def main():
         overview_group = QtWidgets.QGroupBox("Counters Overview")
         overview_group.setContentsMargins(6, 6, 6, 6)
         overview_group.setSizePolicy(
-            QtWidgets.QSizePolicy.Policy.Preferred,
-            QtWidgets.QSizePolicy.Policy.Maximum
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Expanding
         )
         overview_layout = QtWidgets.QGridLayout(overview_group)
         overview_layout.setContentsMargins(12, 28, 12, 12)
         overview_layout.setHorizontalSpacing(12)
         overview_layout.setVerticalSpacing(12)
 
-        cols = 4
+        cols = 3
         for idx in range(MCOUNTER_MAX + 1):
             frame = QtWidgets.QFrame()
             frame.setObjectName(f"mcounterFrame{idx}")
             frame.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
             frame.setStyleSheet("QFrame { border: 1px solid #bdbdbd; border-radius: 8px; padding: 8px; }")
-            frame.setMinimumSize(280, 120)
+            frame.setMinimumWidth(180)
+            frame.setFixedHeight(120)
+            frame.setSizePolicy(
+                QtWidgets.QSizePolicy.Policy.Preferred,
+                QtWidgets.QSizePolicy.Policy.Fixed
+            )
             vbox = QtWidgets.QVBoxLayout(frame)
+            vbox.setContentsMargins(6, 6, 6, 6)
+            vbox.setSpacing(4)
 
             title = QtWidgets.QLabel(f"Counter {idx}")
             title.setStyleSheet(
                 "font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); border-radius: 6px; padding: 6px 8px;"
             )
+            title.setMinimumHeight(20)
             status = QtWidgets.QLabel("● Unknown")
             status.setStyleSheet(
                 "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); border-radius: 6px; padding: 6px 8px;"
             )
+            status.setMinimumHeight(20)
 
-            action_row = QtWidgets.QHBoxLayout()
+            action_row = QtWidgets.QGridLayout()
+            action_row.setHorizontalSpacing(4)
+            action_row.setVerticalSpacing(4)
             btn_read = QtWidgets.QPushButton("Read")
             btn_init = QtWidgets.QPushButton("Init")
             btn_update = QtWidgets.QPushButton("Decrement")
             btn_refresh_one = QtWidgets.QPushButton("Refresh")
-            action_row.addWidget(btn_read)
-            action_row.addWidget(btn_init)
-            action_row.addWidget(btn_update)
-            action_row.addWidget(btn_refresh_one)
+            action_row.addWidget(btn_read, 0, 0)
+            action_row.addWidget(btn_init, 0, 1)
+            action_row.addWidget(btn_update, 1, 0)
+            action_row.addWidget(btn_refresh_one, 1, 1)
 
             vbox.addWidget(title)
             vbox.addWidget(status)
@@ -2334,11 +2345,9 @@ def main():
         scroll_content_layout.setContentsMargins(0, 0, 0, 0)
         scroll_content_layout.setSpacing(0)
         scroll_content_layout.addWidget(overview_group)
-        scroll_content_layout.addStretch(1)
         scroll.setWidget(scroll_content)
 
         tab_layout.addWidget(scroll)
-        tab_layout.addStretch(1)
 
         original_index = window.tabWidget.indexOf(window.tab_6)
         if original_index >= 0:
