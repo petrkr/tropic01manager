@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>529</width>
+    <width>905</width>
     <height>402</height>
    </rect>
   </property>
@@ -22,91 +22,89 @@
    </property>
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
-     <widget class="QWidget" name="connectionStatusBar">
-      <layout class="QHBoxLayout" name="layoutConnectionStatusBar">
-       <item>
-        <widget class="QLabel" name="labelConnectionStatusTitle">
-         <property name="text">
-          <string>Status:</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLabel" name="lblConnectionStatus">
-         <property name="text">
-          <string>Disconnected</string>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">color: red; font-weight: bold;</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLabel" name="lblConnectionTarget">
-         <property name="text">
-          <string/>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">color: #1f5fbf; font-weight: bold;</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLabel" name="labelSessionStatusTitle">
-         <property name="text">
-          <string>Session:</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLabel" name="lblSessionStatus">
-         <property name="text">
-          <string>No Session</string>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">color: gray; font-weight: bold;</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <spacer name="horizontalSpacerConnectionStatus">
-         <property name="orientation">
-          <enum>Qt::Orientation::Horizontal</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>40</width>
-           <height>20</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnToggleConnectionSettings">
-         <property name="text">
-          <string>Connection...</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnConnectToggle">
-         <property name="text">
-          <string>Connect</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnSessionToggle">
-         <property name="enabled">
-          <bool>false</bool>
-         </property>
-         <property name="text">
-          <string>Start Session</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
+     <layout class="QHBoxLayout" name="layoutConnectionStatusBar">
+      <item>
+       <widget class="QLabel" name="labelConnectionStatusTitle">
+        <property name="text">
+         <string>Status:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblConnectionStatus">
+        <property name="styleSheet">
+         <string notr="true">color: red; font-weight: bold;</string>
+        </property>
+        <property name="text">
+         <string>Disconnected</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblConnectionTarget">
+        <property name="styleSheet">
+         <string notr="true">color: #1f5fbf; font-weight: bold;</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="labelSessionStatusTitle">
+        <property name="text">
+         <string>Session:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblSessionStatus">
+        <property name="styleSheet">
+         <string notr="true">color: gray; font-weight: bold;</string>
+        </property>
+        <property name="text">
+         <string>No Session</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacerConnectionStatus">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnToggleConnectionSettings">
+        <property name="text">
+         <string>Connection...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnConnectToggle">
+        <property name="text">
+         <string>Connect</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnSessionToggle">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Start Session</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
     <item row="1" column="0">
      <widget class="QGroupBox" name="groupBoxConnection">
@@ -746,8 +744,7 @@
        <attribute name="title">
         <string>ECC Keys</string>
        </attribute>
-      <layout class="QVBoxLayout" name="layoutEcc">
-      </layout>
+       <layout class="QVBoxLayout" name="layoutEcc"/>
       </widget>
       <widget class="QWidget" name="tab_5">
        <attribute name="title">
@@ -861,8 +858,7 @@
        <attribute name="title">
         <string>MCounter</string>
        </attribute>
-       <layout class="QVBoxLayout" name="layoutMCounter">
-       </layout>
+       <layout class="QVBoxLayout" name="layoutMCounter"/>
       </widget>
       <widget class="QWidget" name="tab_7">
        <attribute name="title">
@@ -876,7 +872,7 @@
        <layout class="QGridLayout" name="gridLayout_4">
         <item row="0" column="0">
          <widget class="QTabWidget" name="tabWidget_2">
-         <property name="currentIndex">
+          <property name="currentIndex">
            <number>0</number>
           </property>
           <widget class="QWidget" name="tab_12">
@@ -934,7 +930,7 @@
               <item>
                <spacer name="horizontalSpacerRConfigBulk">
                 <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -949,7 +945,7 @@
             <item>
              <widget class="QSplitter" name="splitterRConfigBulk">
               <property name="orientation">
-               <enum>Qt::Horizontal</enum>
+               <enum>Qt::Orientation::Horizontal</enum>
               </property>
               <widget class="QWidget" name="splitterRConfigBulkLeft">
                <layout class="QVBoxLayout" name="layoutRConfigBulkLeft">
@@ -1022,6 +1018,14 @@
                    <bool>true</bool>
                   </property>
                   <widget class="QWidget" name="scrollRConfigBulkContents">
+                   <property name="geometry">
+                    <rect>
+                     <x>0</x>
+                     <y>0</y>
+                     <width>98</width>
+                     <height>28</height>
+                    </rect>
+                   </property>
                    <layout class="QVBoxLayout" name="layoutRConfigBulkDetails"/>
                   </widget>
                  </widget>
@@ -1085,18 +1089,26 @@
                </widget>
               </item>
              </layout>
-           </item>
-           <item>
-            <widget class="QScrollArea" name="scrollRConfig">
+            </item>
+            <item>
+             <widget class="QScrollArea" name="scrollRConfig">
               <property name="widgetResizable">
                <bool>true</bool>
               </property>
               <widget class="QWidget" name="scrollRConfigContents">
+               <property name="geometry">
+                <rect>
+                 <x>0</x>
+                 <y>0</y>
+                 <width>98</width>
+                 <height>28</height>
+                </rect>
+               </property>
                <layout class="QVBoxLayout" name="layoutRConfigDetails"/>
               </widget>
-            </widget>
-           </item>
-          </layout>
+             </widget>
+            </item>
+           </layout>
           </widget>
           <widget class="QWidget" name="tab_11">
            <attribute name="title">
@@ -1105,14 +1117,14 @@
            <layout class="QVBoxLayout" name="layoutIConfig">
             <item>
              <widget class="QLabel" name="lblIConfigWarning">
+              <property name="styleSheet">
+               <string notr="true">color: #b00020; font-weight: bold;</string>
+              </property>
               <property name="text">
                <string>I-CONFIG is OTP. Writes are irreversible.</string>
               </property>
               <property name="wordWrap">
                <bool>true</bool>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">color: #b00020; font-weight: bold;</string>
               </property>
              </widget>
             </item>
@@ -1164,6 +1176,14 @@
                <bool>true</bool>
               </property>
               <widget class="QWidget" name="scrollIConfigContents">
+               <property name="geometry">
+                <rect>
+                 <x>0</x>
+                 <y>0</y>
+                 <width>98</width>
+                 <height>28</height>
+                </rect>
+               </property>
                <layout class="QVBoxLayout" name="layoutIConfigDetails"/>
               </widget>
              </widget>
@@ -1244,7 +1264,7 @@
             <item>
              <spacer name="verticalSpacerMaintenancePower">
               <property name="orientation">
-               <enum>Qt::Vertical</enum>
+               <enum>Qt::Orientation::Vertical</enum>
               </property>
               <property name="sizeHint" stdset="0">
                <size>
@@ -1273,7 +1293,7 @@
               <item>
                <spacer name="horizontalSpacerMaintenanceLogs">
                 <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -1313,8 +1333,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>529</width>
-     <height>30</height>
+     <width>905</width>
+     <height>23</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
