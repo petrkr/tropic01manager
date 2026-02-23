@@ -238,11 +238,6 @@ def main():
         window.btnMaintenanceSleep.setEnabled(connected)
         window.btnMaintenanceDeepSleep.setEnabled(connected)
         window.btnMaintenanceGetLogs.setEnabled(connected)
-        window.btnMCounterGet.setEnabled(connected)
-        window.btnMCounterInit.setEnabled(connected)
-        window.btnMCounterUpdate.setEnabled(connected)
-        window.leMCounterIndex.setEnabled(connected)
-        window.leMCounterInitValue.setEnabled(connected)
         window.btnMemRead.setEnabled(connected)
         window.btnMemWrite.setEnabled(connected)
         window.btnMemErase.setEnabled(connected)
@@ -2541,8 +2536,12 @@ def main():
             window.btnMCounterRefreshAll.setEnabled(True)
 
     def create_mcounter_status_tab():
-        tab = QtWidgets.QWidget()
-        tab_layout = QtWidgets.QVBoxLayout(tab)
+        tab_layout = window.layoutMCounter
+        while tab_layout.count():
+            item = tab_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
         tab_layout.setContentsMargins(8, 8, 8, 8)
         tab_layout.setSpacing(8)
         tab_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
@@ -2658,13 +2657,6 @@ def main():
 
         tab_layout.addWidget(scroll)
 
-        original_index = window.tabWidget.indexOf(window.tab_6)
-        if original_index >= 0:
-            window.tabWidget.removeTab(original_index)
-            window.tabWidget.insertTab(original_index, tab, "MCounter")
-        else:
-            window.tabWidget.addTab(tab, "MCounter")
-
         window.btnMCounterRefreshAll = btn_refresh_all
         window.pbMCounterRefresh = progress
         window.lblMCounterRefreshStatus = lbl_status
@@ -2699,15 +2691,9 @@ def main():
     window.btnMaintenanceGetLogs.clicked.connect(on_btnMaintenanceGetLogs_click)
     window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
 
-    window.leMCounterIndex.setValidator(QtGui.QIntValidator(0, MCOUNTER_MAX))
-
     for slot in range(ECC_MAX_KEYS + 1):
         ecc_slot_states[slot] = "unknown"
     create_ecc_overview()
-
-    window.btnMCounterGet.clicked.connect(on_btnMCounterGet_click)
-    window.btnMCounterInit.clicked.connect(on_btnMCounterInit_click)
-    window.btnMCounterUpdate.clicked.connect(on_btnMCounterUpdate_click)
     window.btnMemRead.clicked.connect(on_btnMemRead_click)
     window.btnMemWrite.clicked.connect(on_btnMemWrite_click)
     window.btnMemErase.clicked.connect(on_btnMemErase_click)
