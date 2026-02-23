@@ -1247,6 +1247,12 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tabPairingKeys">
+       <attribute name="title">
+        <string>Pairing Keys</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="layoutPairingKeys"/>
+      </widget>
       <widget class="QWidget" name="tabMaintenance">
        <attribute name="title">
         <string>Maintenance</string>

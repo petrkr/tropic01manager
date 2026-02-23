@@ -702,6 +702,8 @@ def main():
         if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         try:
+            if has_secure_session():
+                on_btnAbortSecureSession_click()
             l2.startup_req(STARTUP_REBOOT)
             QtWidgets.QMessageBox.information(window, "Reboot", "Reboot request sent")
         except Exception as e:
@@ -721,6 +723,8 @@ def main():
         if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         try:
+            if has_secure_session():
+                on_btnAbortSecureSession_click()
             l2.startup_req(STARTUP_MAINTENANCE_REBOOT)
             QtWidgets.QMessageBox.information(window, "Reboot Bootloader", "Bootloader reboot request sent")
         except Exception as e:
@@ -2007,8 +2011,12 @@ def main():
             refresh_pairing_slot_card(slot)
 
     def create_pairing_status_tab():
-        tab = QtWidgets.QWidget()
-        tab_layout = QtWidgets.QVBoxLayout(tab)
+        tab_layout = window.layoutPairingKeys
+        while tab_layout.count():
+            item = tab_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
         tab_layout.setContentsMargins(8, 8, 8, 8)
         tab_layout.setSpacing(8)
         tab_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
@@ -2094,8 +2102,6 @@ def main():
 
         tab_layout.addWidget(overview_group)
         tab_layout.addStretch(1)
-
-        window.tabWidget.addTab(tab, "Pairing Keys")
 
         window.btnPairingSlotsRefresh = btn_refresh
         window.pbPairingSlotsRefresh = progress
