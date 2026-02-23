@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import re
+
 from PyQt6 import QtWidgets, QtCore
 from tropicsquare.constants import MEM_DATA_MAX_SIZE
+from tropicsquare.exceptions import TropicSquareCommandError, TropicSquareUnauthorizedError
 
 
 def setup_mem_data(window, bus, get_ts):
@@ -37,10 +40,14 @@ def setup_mem_data(window, bus, get_ts):
             return f"● Data ({len(slot_data.get(slot, b''))}B)"
         if state == "empty":
             return "● Empty"
+        if state == "unauthorized":
+            return "● Unauthorized"
         if state == "no-session":
             return "● No session"
+        if isinstance(state, str) and state.startswith("error:"):
+            return f"● Error {state.split(':', 1)[1]}"
         if state == "error":
-            return "● Error"
+            return "● Error code"
         return "● Unknown"
 
     def card_style(slot: int, selected: bool) -> str:
@@ -57,6 +64,14 @@ def setup_mem_data(window, bus, get_ts):
             bg = "rgba(192, 122, 0, 0.11)"
             status_color = "#c07a00"
         elif state == "error":
+            border_color = "#b00020"
+            bg = "rgba(176, 0, 32, 0.11)"
+            status_color = "#b00020"
+        elif state == "unauthorized":
+            border_color = "#7b3fb0"
+            bg = "rgba(123, 63, 176, 0.14)"
+            status_color = "#7b3fb0"
+        elif isinstance(state, str) and state.startswith("error:"):
             border_color = "#b00020"
             bg = "rgba(176, 0, 32, 0.11)"
             status_color = "#b00020"
@@ -128,6 +143,16 @@ def setup_mem_data(window, bus, get_ts):
         slot_data[slot] = data
         slot_states[slot] = "empty" if len(data) == 0 else "data"
 
+    def extract_error_code(exc: Exception) -> str | None:
+        text = str(exc)
+        match = re.search(r"\((?:result|status):\s*(0x[0-9a-fA-F]+)\)", text)
+        if match:
+            return match.group(1).lower()
+        match = re.search(r"\b0x[0-9a-fA-F]+\b", text)
+        if match:
+            return match.group(0).lower()
+        return None
+
     def run_refresh(slots, label: str):
         btn_refresh_page.setEnabled(False)
         btn_refresh_bank.setEnabled(False)
@@ -143,8 +168,18 @@ def setup_mem_data(window, bus, get_ts):
                 lbl_refresh.setText(f"{label} {i}/{len(slots)} (slot {slot})")
                 try:
                     read_slot(slot)
-                except Exception:
-                    slot_states[slot] = "error"
+                except TropicSquareUnauthorizedError:
+                    slot_states[slot] = "unauthorized"
+                    slot_data.pop(slot, None)
+                    errors += 1
+                except TropicSquareCommandError as e:
+                    code = extract_error_code(e)
+                    slot_states[slot] = f"error:{code}" if code else "error"
+                    slot_data.pop(slot, None)
+                    errors += 1
+                except Exception as e:
+                    code = extract_error_code(e)
+                    slot_states[slot] = f"error:{code}" if code else "error"
                     slot_data.pop(slot, None)
                     errors += 1
                 pb_refresh.setValue(i)
