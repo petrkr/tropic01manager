@@ -31,6 +31,8 @@ from cryptography.hazmat.primitives import serialization
 from datetime import datetime
 import threading
 import copy
+import os
+import hashlib
 
 
 def parse_certificate_info(cert_data):
@@ -238,6 +240,7 @@ def main():
         window.btnMaintenanceSleep.setEnabled(connected)
         window.btnMaintenanceDeepSleep.setEnabled(connected)
         window.btnMaintenanceGetLogs.setEnabled(connected)
+        window.btnEccSignMessage.setEnabled(connected)
         window.btnMemRead.setEnabled(connected)
         window.btnMemWrite.setEnabled(connected)
         window.btnMemErase.setEnabled(connected)
@@ -838,6 +841,100 @@ def main():
             return None
         return cmb.currentData(), key_bytes
 
+    def prompt_ecc_sign():
+        slots = []
+        for slot, state in ecc_slot_states.items():
+            if state == "present":
+                slots.append(slot)
+        if not slots:
+            QtWidgets.QMessageBox.warning(window, "No Keys", "No ECC key available for signing")
+            return None
+        dialog = QtWidgets.QDialog(window)
+        dialog.setWindowTitle("Sign Message")
+        dialog.setModal(True)
+        layout = QtWidgets.QFormLayout(dialog)
+        cmb = QtWidgets.QComboBox(dialog)
+        for slot in sorted(slots):
+            info = ecc_slot_info.get(slot)
+            label = f"Slot {slot}"
+            if info is not None:
+                label = f"Slot {slot} ({ecc_curve_name(info.curve)})"
+            cmb.addItem(label, slot)
+        mode_row = QtWidgets.QHBoxLayout()
+        rb_text = QtWidgets.QRadioButton("Text")
+        rb_hex = QtWidgets.QRadioButton("Hex")
+        rb_text.setChecked(True)
+        mode_row.addWidget(rb_text)
+        mode_row.addWidget(rb_hex)
+        mode_row.addStretch(1)
+        pte = QtWidgets.QPlainTextEdit(dialog)
+        pte.setPlaceholderText("Message to sign")
+        layout.addRow("Slot", cmb)
+        layout.addRow("Mode", mode_row)
+        layout.addRow("Message", pte)
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addRow(buttons)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return None
+        text = pte.toPlainText()
+        if not text.strip():
+            QtWidgets.QMessageBox.warning(window, "Invalid Message", "Message is required")
+            return None
+        if rb_hex.isChecked():
+            try:
+                message = parse_hex_bytes(text, "Message")
+            except ValueError as e:
+                QtWidgets.QMessageBox.warning(window, "Invalid Message", str(e))
+                return None
+        else:
+            message = text.encode("utf-8")
+        return cmb.currentData(), message
+
+    def on_btnEccSignMessage_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+        result = prompt_ecc_sign()
+        if result is None:
+            return
+        slot, message = result
+        try:
+            info = ecc_slot_info.get(slot)
+            if info is None:
+                info = ts.ecc_key_read(slot)
+                ecc_slot_states[slot] = "present"
+                ecc_slot_info[slot] = info
+                refresh_ecc_slot_card(slot)
+            if info.curve == ECC_CURVE_P256:
+                message_hash = hashlib.sha256(message).digest()
+                signature = ts.ecdsa_sign(slot, message_hash)
+                details = (
+                    "Curve: P256 (ECDSA)\n"
+                    f"Hash (SHA-256): {message_hash.hex()}\n"
+                    f"R: {signature.r.hex()}\n"
+                    f"S: {signature.s.hex()}"
+                )
+            elif info.curve == ECC_CURVE_ED25519:
+                signature = ts.eddsa_sign(slot, message)
+                signature_hex = (signature.r + signature.s).hex()
+                details = (
+                    "Curve: Ed25519 (EdDSA)\n"
+                    f"R: {signature.r.hex()}\n"
+                    f"S: {signature.s.hex()}\n"
+                    f"Signature: {signature_hex}"
+                )
+            else:
+                QtWidgets.QMessageBox.warning(window, "Unsupported Curve", f"Unknown curve: 0x{info.curve:02X}")
+                return
+            QtWidgets.QMessageBox.information(window, "Signature", details)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Sign Failed", str(e))
+
     def on_btnEccRefreshOne_click(slot: int):
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
@@ -933,10 +1030,12 @@ def main():
             return
         state = ecc_slot_states.get(slot, "unknown")
         status = card["status"]
+        frame = card["frame"]
         base_style = (
             "font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
             "border-radius: 6px; padding: 6px 8px;"
         )
+        frame_selector = f"QFrame#{frame.objectName()}"
         if state == "present":
             info = ecc_slot_info.get(slot)
             if info:
@@ -945,29 +1044,52 @@ def main():
                 status_text = "● Present"
             status.setText(status_text)
             status.setStyleSheet(f"color: #1f5fbf; {base_style}")
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #2e7d32; border-radius: 8px; padding: 8px; "
+                f"background-color: rgba(46, 125, 50, 0.13); }}"
+            )
             card["btn_primary"].setText("Show")
             card["btn_primary"].setVisible(True)
+            card["btn_primary"].setEnabled(True)
             card["btn_secondary"].setText("Erase")
             card["btn_secondary"].setVisible(True)
+            card["btn_secondary"].setEnabled(True)
             card["btn_refresh"].setVisible(False)
+            card["btn_refresh"].setEnabled(False)
             card["primary_action"] = lambda s=slot: on_btnEccShowFromOverview_click(s)
             card["secondary_action"] = lambda s=slot: on_btnEccEraseFromOverview_click(s)
         elif state == "empty":
             status.setText("● Empty")
             status.setStyleSheet(f"color: #666666; {base_style}")
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #7a7a7a; border-radius: 8px; padding: 8px; "
+                f"background-color: rgba(122, 122, 122, 0.11); }}"
+            )
             card["btn_primary"].setText("Generate")
             card["btn_primary"].setVisible(True)
+            card["btn_primary"].setEnabled(True)
             card["btn_secondary"].setText("Store")
             card["btn_secondary"].setVisible(True)
+            card["btn_secondary"].setEnabled(True)
             card["btn_refresh"].setVisible(False)
+            card["btn_refresh"].setEnabled(False)
             card["primary_action"] = lambda s=slot: on_btnEccGenerateFromOverview_click(s)
             card["secondary_action"] = lambda s=slot: on_btnEccStoreFromOverview_click(s)
         else:
             status.setText("● Unknown")
             status.setStyleSheet(f"color: #666666; {base_style}")
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #7a7a7a; border-radius: 8px; padding: 8px; "
+                f"background-color: rgba(122, 122, 122, 0.11); }}"
+            )
+            card["btn_primary"].setText("Show")
             card["btn_primary"].setVisible(False)
+            card["btn_primary"].setEnabled(False)
+            card["btn_secondary"].setText("Erase")
             card["btn_secondary"].setVisible(False)
+            card["btn_secondary"].setEnabled(False)
             card["btn_refresh"].setVisible(True)
+            card["btn_refresh"].setEnabled(True)
             card["primary_action"] = None
             card["secondary_action"] = None
 
@@ -976,6 +1098,7 @@ def main():
         top_row.setContentsMargins(0, 0, 0, 0)
         top_row.setSpacing(8)
         btn_refresh_all = QtWidgets.QPushButton("Refresh All")
+        btn_sign_message = QtWidgets.QPushButton("Sign Message")
         progress = QtWidgets.QProgressBar()
         progress.setMinimum(0)
         progress.setMaximum(ECC_MAX_KEYS + 1)
@@ -984,6 +1107,7 @@ def main():
         progress.setFixedWidth(180)
         lbl_status = QtWidgets.QLabel("Idle")
         top_row.addWidget(btn_refresh_all)
+        top_row.addWidget(btn_sign_message)
         top_row.addWidget(progress)
         top_row.addWidget(lbl_status)
         top_row.addStretch(1)
@@ -1070,10 +1194,10 @@ def main():
         scroll_content_layout = QtWidgets.QVBoxLayout(scroll_content)
         scroll_content_layout.setContentsMargins(0, 0, 0, 0)
         scroll_content_layout.setSpacing(0)
-        scroll_content_layout.addLayout(top_row)
         scroll_content_layout.addWidget(overview_group)
         scroll.setWidget(scroll_content)
 
+        window.layoutEcc.addLayout(top_row)
         window.layoutEcc.addWidget(scroll)
 
         def on_btnEccRefreshAll_click():
@@ -1102,6 +1226,8 @@ def main():
             btn_refresh_all.setEnabled(True)
 
         btn_refresh_all.clicked.connect(on_btnEccRefreshAll_click)
+        btn_sign_message.clicked.connect(on_btnEccSignMessage_click)
+        window.btnEccSignMessage = btn_sign_message
 
     def get_mcounter_index():
         idx_text = window.leMCounterIndex.text().strip()
