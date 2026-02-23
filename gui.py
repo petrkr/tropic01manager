@@ -5,6 +5,10 @@ from ui.mcounter import setup_mcounter
 from ui.pairing_keys import setup_pairing_keys
 from ui.config_tab import setup_config_tab
 from ui.mem_data import setup_mem_data
+from ui.info import setup_info
+from ui.chip_id import setup_chip_id
+from ui.ping import setup_ping
+from ui.random_data import setup_random_data
 from tropicsquare.constants.pairing_keys import (
     FACTORY_PAIRING_KEY_INDEX,
     FACTORY_PAIRING_PRIVATE_KEY_PROD0,
@@ -18,99 +22,7 @@ from tropicsquare.transports.uart import UartTransport
 from tropicsquare.transports.network import NetworkSpiTransport
 from tropicsquare.transports.tcp import TcpTransport
 
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from datetime import datetime
 import threading
-
-
-def parse_certificate_info(cert_data):
-    """Parse certificate information with fallback for problematic certificates.
-
-    Some TROPIC01 rev 1 chips have certificates with RFC 5280 violations:
-    - CRL Distribution Points extension has explicit critical=FALSE encoding
-    - This violates DER encoding rules (default values should be omitted)
-    - Cryptography 43+ enforces strict validation and rejects these certs
-    - OpenSSL accepts them (more lenient parser)
-
-    This function tries multiple parsing approaches:
-    1. Standard cryptography library parsing (works for rev 0 and compliant certs)
-    2. Manual ASN.1 parsing for dates (fallback for non-compliant certs)
-
-    Args:
-        cert_data: Certificate in DER format (bytes or bytearray)
-
-    Returns:
-        tuple: (not_before, not_after, subject_cn) where dates are datetime objects
-               or (None, None, None) on complete failure
-    """
-    cert_bytes = bytes(cert_data)
-
-    # Try standard parsing first (works for most certs)
-    try:
-        cert = x509.load_der_x509_certificate(cert_bytes, default_backend())
-        not_before = cert.not_valid_before_utc
-        not_after = cert.not_valid_after_utc
-        # Extract CN from subject
-        try:
-            cn = cert.subject.get_attributes_for_oid(x509.oid.NameOID.COMMON_NAME)[0].value
-        except:
-            cn = "Unknown"
-        return (not_before, not_after, cn)
-    except Exception:
-        pass  # Fall through to manual parsing
-
-    # Fallback: Manual ASN.1 parsing for dates
-    # This handles certificates with encoding violations that cryptography rejects
-    try:
-        dates = []
-        idx = 0
-        # Find UTCTime fields (tag 0x17, length 0x0d for 13-byte format YYMMDDHHMMSSZ)
-        while idx < len(cert_bytes) - 15:
-            if cert_bytes[idx] == 0x17 and cert_bytes[idx+1] == 0x0d:
-                date_str = cert_bytes[idx+2:idx+15].decode('ascii')
-                # Parse YYMMDDHHMMSSZ format
-                year = int(date_str[0:2])
-                # Y2K handling: years 00-49 are 2000-2049, 50-99 are 1950-1999
-                year = 2000 + year if year < 50 else 1900 + year
-                month = int(date_str[2:4])
-                day = int(date_str[4:6])
-                hour = int(date_str[6:8])
-                minute = int(date_str[8:10])
-                second = int(date_str[10:12])
-                dt = datetime(year, month, day, hour, minute, second)
-                dates.append(dt)
-            idx += 1
-
-        # Extract subject CN manually (UTF8STRING after OID 55 04 03)
-        # OID 2.5.4.3 (commonName) = 55 04 03
-        # Note: There may be multiple CNs (issuer, subject) - use the LAST one (subject)
-        cn = "Unknown"
-        cn_oid = bytes.fromhex('550403')
-        cn_occurrences = []
-        idx = 0
-        while idx < len(cert_bytes):
-            idx = cert_bytes.find(cn_oid, idx)
-            if idx < 0:
-                break
-            try:
-                cn_len = cert_bytes[idx + 4]
-                cn_start = idx + 5
-                cn_value = cert_bytes[cn_start:cn_start + cn_len].decode('utf-8')
-                cn_occurrences.append(cn_value)
-            except:
-                pass
-            idx += 1
-
-        if cn_occurrences:
-            cn = cn_occurrences[-1]  # Last occurrence is subject CN
-
-        if len(dates) >= 2:
-            return (dates[0], dates[1], cn)
-        return (None, None, cn)
-    except Exception:
-        return (None, None, None)
 
 
 # Default factory pairing keys (PH0 / PROD0)
@@ -138,6 +50,10 @@ def main():
     pairing_reset_state = None
     config_set_enabled = None
     mem_set_enabled = None
+    info_set_enabled = None
+    ping_set_enabled = None
+    random_set_enabled = None
+    chip_id_refresh = None
     bus = EventBus()
 
     def close_transport():
@@ -212,10 +128,12 @@ def main():
             window.lblConnectionTarget.setText("")
 
         # Enable/disable device operation buttons based on connection
-        window.btnGetInfo.setEnabled(connected)
-        window.btnSaveCert.setEnabled(connected)
-        window.btnPing.setEnabled(connected)
-        window.btnGetRandom.setEnabled(connected)
+        if info_set_enabled is not None:
+            info_set_enabled(connected)
+        if ping_set_enabled is not None:
+            ping_set_enabled(connected)
+        if random_set_enabled is not None:
+            random_set_enabled(connected)
         window.btnMaintenanceStartupReboot.setEnabled(connected)
         window.btnMaintenanceStartupBootloader.setEnabled(connected)
         window.btnMaintenanceSleep.setEnabled(connected)
@@ -402,7 +320,8 @@ def main():
                     f"Chip ID read failed: {error_msg}"
                 )
 
-            refresh_chip_id(validation_result["chip_id"])
+            if chip_id_refresh is not None:
+                chip_id_refresh(validation_result["chip_id"])
             update_connection_ui()
             bus.emit("device_changed", connected=True)
 
@@ -438,91 +357,6 @@ def main():
             window.lblConnectionStatus.setText(f"Disconnect error: {str(e)}")
             window.lblConnectionStatus.setStyleSheet("color: orange; font-weight: bold;")
             update_connection_ui()  # Ensure buttons are in correct state
-
-    def on_btn_get_info_click():
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-
-        try:
-            riscv_ver = ts.riscv_fw_version
-            spect_ver = ts.spect_fw_version
-            window.lblRISCFWVersion.setText(f"{riscv_ver[0]}.{riscv_ver[1]}.{riscv_ver[2]}.{riscv_ver[3]}")
-            window.lblSPECTFWVersion.setText(f"{spect_ver[0]}.{spect_ver[1]}.{spect_ver[2]}.{spect_ver[3]}")
-
-            window.lblCertPubkey.setText(ts.public_key.hex())
-
-            # Parse certificate with fallback for non-compliant certs
-            not_before, not_after, subject_cn = parse_certificate_info(ts.certificate)
-            if not_before and not_after:
-                window.lblCertDateIssue.setText(not_before.isoformat())
-                window.lblCertDateExpire.setText(not_after.isoformat())
-            else:
-                window.lblCertDateIssue.setText("Parse error")
-                window.lblCertDateExpire.setText("Parse error")
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(window, "Error", f"Failed to get info:\n{str(e)}")
-
-
-    def on_btn_save_cert_click():
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-
-        filename, fileformat = QtWidgets.QFileDialog.getSaveFileName(window, "Save certificate", "", "PEM Certificate files (*.pem *.crt);;DER Certificate files (*.der);;All files (*)")
-        if not filename:
-            return
-
-        with open(filename, "wb") as f:
-            if fileformat == "PEM Certificate files (*.pem *.crt)":
-                cert = x509.load_der_x509_certificate(bytes(ts.certificate), default_backend())
-                f.write(cert.public_bytes(encoding=serialization.Encoding.PEM))
-            else:
-                f.write(bytes(ts.certificate))
-
-
-    def refresh_chip_id(chip_id=None):
-        """Get and display chip ID information"""
-        if chip_id is None and not ts:
-            return
-
-        try:
-            # Get parsed chip ID (chipid is a property, not a method)
-            if chip_id is None:
-                chip_id = ts.chipid
-
-            # Display chip information
-            window.lblChipIDVersion.setText('.'.join(map(str, chip_id.chip_id_version)))
-            window.lblSiliconRev.setText(chip_id.silicon_rev)
-            window.lblPackageType.setText(f"{chip_id.package_type_name} (0x{chip_id.package_type_id:04X})")
-            window.lblFabrication.setText(f"{chip_id.fab_name} (0x{chip_id.fab_id:03X})")
-            window.lblPartNumberID.setText(f"0x{chip_id.part_number_id:03X}")
-            window.lblHSMVersion.setText('.'.join(map(str, chip_id.hsm_version)))
-            window.lblProgVersion.setText('.'.join(map(str, chip_id.prog_version)))
-            window.lblBatchID.setText(chip_id.batch_id.hex())
-
-            # Try to decode part number as ASCII (16 bytes)
-            try:
-                part_num_ascii = chip_id.part_num_data.decode('ascii', 'ignore').rstrip('\x00')
-                if part_num_ascii:
-                    window.lblPartNumberASCII.setText(part_num_ascii)
-                else:
-                    window.lblPartNumberASCII.setText(f"(hex: {chip_id.part_num_data.hex()})")
-            except:
-                window.lblPartNumberASCII.setText(f"(hex: {chip_id.part_num_data.hex()})")
-
-            # Display serial number information
-            sn = chip_id.serial_number
-            window.lblSerialNumber.setText(f"0x{sn.sn:02X}")
-            window.lblSNFabID.setText(f"0x{sn.fab_id:03X}")
-            window.lblSNPartNumber.setText(f"0x{sn.part_number_id:03X}")
-            window.lblLotID.setText(sn.lot_id.hex())
-            window.lblWaferID.setText(f"0x{sn.wafer_id:02X}")
-            window.lblWaferCoords.setText(f"({sn.x_coord}, {sn.y_coord})")
-
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(window, "Error", f"Failed to get chip ID:\n{str(e)}")
-
 
     def on_btnStartSecureSession_click():
         nonlocal current_pairing_pubkey, current_pairing_index
@@ -613,41 +447,6 @@ def main():
             on_btnStartSecureSession_click()
 
 
-    def on_btnPing_click():
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-
-        ping = window.ptePingInput.toPlainText().encode("utf-8")
-        try:
-            window.ptePingResult.setPlainText(ts.ping(ping).decode("utf-8"))
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-        except TropicSquareError as e:
-            QtWidgets.QMessageBox.critical(window, "Ping Failed", str(e))
-
-
-    def on_btnbtnGetRandom_click():
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-
-        try:
-            number_text = window.leRandomBytesNum.text().strip()
-            if not number_text:
-                raise ValueError("Byte count is required")
-            number = int(number_text)
-            if number > 255:
-                raise ValueError("Number must be less than 256")
-            window.pteRandomBytes.setPlainText(ts.get_random(number).hex())
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-        except ValueError as e:
-            QtWidgets.QMessageBox.warning(window, "Invalid Input", str(e))
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(window, "Random Failed", str(e))
-
-
     def has_secure_session():
         return ts is not None and hasattr(ts, "_secure_session") and ts._secure_session is not None
 
@@ -666,15 +465,13 @@ def main():
     window.lePairingPriv.textChanged.connect(save_custom_pairing_params)
     window.lePairingPub.textChanged.connect(save_custom_pairing_params)
 
-    # Connect device operation signals
-    window.btnGetInfo.clicked.connect(on_btn_get_info_click)
-    window.btnSaveCert.clicked.connect(on_btn_save_cert_click)
-    window.btnPing.clicked.connect(on_btnPing_click)
-    window.btnGetRandom.clicked.connect(on_btnbtnGetRandom_click)
-    window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
     window.splitterChipIdTop.setStretchFactor(0, 1)
     window.splitterChipIdTop.setStretchFactor(1, 1)
     setup_maintenance(window, bus, lambda: ts, has_secure_session, on_btnAbortSecureSession_click)
+    chip_id_refresh = setup_chip_id(window, lambda: ts)
+    info_set_enabled = setup_info(window, lambda: ts)
+    ping_set_enabled = setup_ping(window, lambda: ts)
+    random_set_enabled = setup_random_data(window, lambda: ts)
 
     ecc_set_enabled = setup_ecc(window, bus, lambda: ts, parse_hex_bytes)
     mcounter_set_enabled = setup_mcounter(window, bus, lambda: ts, has_secure_session)
