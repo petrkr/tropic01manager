@@ -1,4 +1,10 @@
-from tropicsquare.constants.ecc import ECC_CURVE_ED25519, ECC_CURVE_P256
+from tropicsquare.constants.ecc import (
+    ECC_CURVE_ED25519,
+    ECC_CURVE_P256,
+    ECC_KEY_ORIGIN_GENERATED,
+    ECC_KEY_ORIGIN_STORED,
+    ECC_MAX_KEYS
+)
 from tropicsquare.constants import MCOUNTER_MAX, MEM_DATA_MAX_SIZE, PAIRING_KEY_MAX, PAIRING_KEY_SIZE
 from tropicsquare.constants.pairing_keys import (
     FACTORY_PAIRING_KEY_INDEX,
@@ -141,6 +147,9 @@ def main():
     mcounter_cards = {}
     mcounter_states = {}
     mcounter_values = {}
+    ecc_slot_cards = {}
+    ecc_slot_states = {}
+    ecc_slot_info = {}
 
     def close_transport():
         nonlocal transport
@@ -218,11 +227,6 @@ def main():
         window.btnSaveCert.setEnabled(connected)
         window.btnPing.setEnabled(connected)
         window.btnGetRandom.setEnabled(connected)
-        window.btnECCRead.setEnabled(connected)
-        window.btnECCGenerate.setEnabled(connected)
-        window.btnECCStore.setEnabled(connected)
-        window.btnECCErase.setEnabled(connected)
-        window.leECCPrivateKey.setEnabled(connected)
         window.btnMCounterGet.setEnabled(connected)
         window.btnMCounterInit.setEnabled(connected)
         window.btnMCounterUpdate.setEnabled(connected)
@@ -665,150 +669,334 @@ def main():
             QtWidgets.QMessageBox.critical(window, "Random Failed", str(e))
 
 
-    def get_ecc_slot():
-        slot_text = window.leECCSlot.text().strip()
-        if not slot_text:
-            raise ValueError("Slot number is required")
-        slot = int(slot_text)
-        if slot < 0 or slot > 31:
-            raise ValueError("Slot must be 0-31")
-        return slot
+    def ecc_curve_name(curve: int) -> str:
+        if curve == ECC_CURVE_P256:
+            return "P256"
+        if curve == ECC_CURVE_ED25519:
+            return "Ed25519"
+        return f"Unknown (0x{curve:02X})"
 
-    def on_btnECCRead_click():
+    def ecc_origin_name(origin: int) -> str:
+        if origin == ECC_KEY_ORIGIN_GENERATED:
+            return "Generated"
+        if origin == ECC_KEY_ORIGIN_STORED:
+            return "Stored"
+        return f"Origin 0x{origin:02X}"
+
+    def prompt_ecc_curve(title: str):
+        dialog = QtWidgets.QDialog(window)
+        dialog.setWindowTitle(title)
+        dialog.setModal(True)
+        layout = QtWidgets.QFormLayout(dialog)
+        cmb = QtWidgets.QComboBox(dialog)
+        cmb.addItem("P256", ECC_CURVE_P256)
+        cmb.addItem("Ed25519", ECC_CURVE_ED25519)
+        layout.addRow("Curve", cmb)
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addRow(buttons)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return None
+        return cmb.currentData()
+
+    def prompt_ecc_store():
+        dialog = QtWidgets.QDialog(window)
+        dialog.setWindowTitle("Store ECC key")
+        dialog.setModal(True)
+        layout = QtWidgets.QFormLayout(dialog)
+        cmb = QtWidgets.QComboBox(dialog)
+        cmb.addItem("P256", ECC_CURVE_P256)
+        cmb.addItem("Ed25519", ECC_CURVE_ED25519)
+        le_key = QtWidgets.QLineEdit(dialog)
+        le_key.setPlaceholderText("Private key (hex)")
+        layout.addRow("Curve", cmb)
+        layout.addRow("Private key (hex)", le_key)
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addRow(buttons)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return None
+        try:
+            key_bytes = parse_hex_bytes(le_key.text(), "Private key")
+            if len(key_bytes) != 32:
+                raise ValueError("Private key must be 32 bytes")
+        except ValueError as e:
+            QtWidgets.QMessageBox.warning(window, "Invalid Private Key", str(e))
+            return None
+        return cmb.currentData(), key_bytes
+
+    def on_btnEccRefreshOne_click(slot: int):
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
-
         try:
-            slot = get_ecc_slot()
-
-
-            window.rbECCP256.setChecked(False)
-            window.rbECCEd25519.setChecked(False)
-
             key_info = ts.ecc_key_read(slot)
-
-            if key_info.origin == 0x01:
-                window.lblECCKeySource.setText("Generated")
-            elif key_info.origin == 0x02:
-                window.lblECCKeySource.setText("User stored")
-            else:
-                window.lblECCKeySource.setText("Unknown")
-
-            if key_info.curve == ECC_CURVE_P256:
-                window.rbECCP256.setChecked(True)
-                window.rbECCEd25519.setChecked(False)
-                window.lblECCCurveInfo.setText("P256")
-            elif key_info.curve == ECC_CURVE_ED25519:
-                window.rbECCP256.setChecked(False)
-                window.rbECCEd25519.setChecked(True)
-                window.lblECCCurveInfo.setText("Ed25519")
-            else:
-                window.lblECCCurveInfo.setText(f"Unknown (0x{key_info.curve:02X})")
-
-            window.pteECCPubkey.setPlainText(key_info.public_key.hex())
-
+            ecc_slot_states[slot] = "present"
+            ecc_slot_info[slot] = key_info
+        except TropicSquareECCInvalidKeyError:
+            ecc_slot_states[slot] = "empty"
+            ecc_slot_info.pop(slot, None)
         except TropicSquareNoSession:
             QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-        except ValueError as e:
-            QtWidgets.QMessageBox.warning(window, "Invalid Slot", str(e))
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(window, "ECC Read Failed", str(e))
+            return
+        except Exception:
+            ecc_slot_states[slot] = "unknown"
+            ecc_slot_info.pop(slot, None)
+        refresh_ecc_slot_card(slot)
 
-    def get_ecc_curve():
-        if window.rbECCP256.isChecked():
-            return ECC_CURVE_P256
-        if window.rbECCEd25519.isChecked():
-            return ECC_CURVE_ED25519
-        return None
-
-    def on_btnECCGenerate_click():
+    def on_btnEccGenerateFromOverview_click(slot: int):
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
-
+        curve = prompt_ecc_curve(f"Generate ECC key in slot {slot}")
+        if curve is None:
+            return
         try:
-            slot = get_ecc_slot()
-            curve = get_ecc_curve()
-            if curve is None:
-                raise ValueError("Select curve")
-            try:
-                ts.ecc_key_read(slot)
-                QtWidgets.QMessageBox.critical(window, "ECC Generate Failed", "Slot already contains a key")
-                return
-            except TropicSquareError:
-                pass
             ts.ecc_key_generate(slot, curve)
-            on_btnECCRead_click()
+            on_btnEccRefreshOne_click(slot)
             QtWidgets.QMessageBox.information(window, "ECC Generate", "Key generated successfully")
         except TropicSquareNoSession:
             QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-        except ValueError as e:
-            QtWidgets.QMessageBox.warning(window, "Invalid Slot", str(e))
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "ECC Generate Failed", str(e))
 
-    def on_btnECCStore_click():
+    def on_btnEccStoreFromOverview_click(slot: int):
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
-
+        result = prompt_ecc_store()
+        if result is None:
+            return
+        curve, key_bytes = result
         try:
-            slot = get_ecc_slot()
-            curve = get_ecc_curve()
-            if curve is None:
-                raise ValueError("Select curve")
-
-            key_hex = window.leECCPrivateKey.text().strip()
-            key_hex = key_hex.replace(" ", "").replace("\n", "")
-            if not key_hex:
-                raise ValueError("Private key is empty")
-
-            key_bytes = bytes.fromhex(key_hex)
-            if len(key_bytes) != 32:
-                raise ValueError("Private key must be 32 bytes")
-
-            try:
-                ts.ecc_key_read(slot)
-                QtWidgets.QMessageBox.critical(window, "ECC Store Failed", "Slot already contains a key")
-                return
-            except TropicSquareError:
-                pass
-
             ts.ecc_key_store(slot, curve, key_bytes)
-            on_btnECCRead_click()
+            on_btnEccRefreshOne_click(slot)
             QtWidgets.QMessageBox.information(window, "ECC Store", "Key stored successfully")
         except TropicSquareNoSession:
             QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-        except ValueError as e:
-            QtWidgets.QMessageBox.warning(window, "Invalid Slot", str(e))
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "ECC Store Failed", str(e))
 
-    def on_btnECCErase_click():
+    def on_btnEccShowFromOverview_click(slot: int):
+        info = ecc_slot_info.get(slot)
+        if info is None:
+            on_btnEccRefreshOne_click(slot)
+            info = ecc_slot_info.get(slot)
+        if info is None:
+            return
+        QtWidgets.QMessageBox.information(
+            window,
+            f"ECC Slot {slot}",
+            info.public_key.hex()
+        )
+
+    def on_btnEccEraseFromOverview_click(slot: int):
         if not ts:
             QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
-
+        confirm = QtWidgets.QMessageBox.question(
+            window,
+            "ECC Erase",
+            f"Erase ECC key in slot {slot}?",
+            QtWidgets.QMessageBox.StandardButton.Yes
+            | QtWidgets.QMessageBox.StandardButton.No
+        )
+        if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
         try:
-            slot = get_ecc_slot()
-            try:
-                ts.ecc_key_read(slot)
-            except TropicSquareError as e:
-                QtWidgets.QMessageBox.critical(window, "ECC Erase Failed", f"Key not found: {e}")
-                return
-
             ts.ecc_key_erase(slot)
-            window.lblECCKeySource.setText("")
-            window.lblECCCurveInfo.setText("")
-            window.pteECCPubkey.setPlainText("")
+            ecc_slot_states[slot] = "empty"
+            ecc_slot_info.pop(slot, None)
+            refresh_ecc_slot_card(slot)
             QtWidgets.QMessageBox.information(window, "ECC Erase", "Key erased successfully")
         except TropicSquareNoSession:
             QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-        except ValueError as e:
-            QtWidgets.QMessageBox.warning(window, "Invalid Slot", str(e))
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "ECC Erase Failed", str(e))
+
+    def refresh_ecc_slot_card(slot: int):
+        card = ecc_slot_cards.get(slot)
+        if not card:
+            return
+        state = ecc_slot_states.get(slot, "unknown")
+        status = card["status"]
+        base_style = (
+            "font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+            "border-radius: 6px; padding: 6px 8px;"
+        )
+        if state == "present":
+            info = ecc_slot_info.get(slot)
+            if info:
+                status_text = f"● {ecc_curve_name(info.curve)} / {ecc_origin_name(info.origin)}"
+            else:
+                status_text = "● Present"
+            status.setText(status_text)
+            status.setStyleSheet(f"color: #1f5fbf; {base_style}")
+            card["btn_primary"].setText("Show")
+            card["btn_primary"].setVisible(True)
+            card["btn_secondary"].setText("Erase")
+            card["btn_secondary"].setVisible(True)
+            card["btn_refresh"].setVisible(False)
+            card["primary_action"] = lambda s=slot: on_btnEccShowFromOverview_click(s)
+            card["secondary_action"] = lambda s=slot: on_btnEccEraseFromOverview_click(s)
+        elif state == "empty":
+            status.setText("● Empty")
+            status.setStyleSheet(f"color: #666666; {base_style}")
+            card["btn_primary"].setText("Generate")
+            card["btn_primary"].setVisible(True)
+            card["btn_secondary"].setText("Store")
+            card["btn_secondary"].setVisible(True)
+            card["btn_refresh"].setVisible(False)
+            card["primary_action"] = lambda s=slot: on_btnEccGenerateFromOverview_click(s)
+            card["secondary_action"] = lambda s=slot: on_btnEccStoreFromOverview_click(s)
+        else:
+            status.setText("● Unknown")
+            status.setStyleSheet(f"color: #666666; {base_style}")
+            card["btn_primary"].setVisible(False)
+            card["btn_secondary"].setVisible(False)
+            card["btn_refresh"].setVisible(True)
+            card["primary_action"] = None
+            card["secondary_action"] = None
+
+    def create_ecc_overview():
+        top_row = QtWidgets.QHBoxLayout()
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(8)
+        btn_refresh_all = QtWidgets.QPushButton("Refresh All")
+        progress = QtWidgets.QProgressBar()
+        progress.setMinimum(0)
+        progress.setMaximum(ECC_MAX_KEYS + 1)
+        progress.setValue(0)
+        progress.setTextVisible(False)
+        progress.setFixedWidth(180)
+        lbl_status = QtWidgets.QLabel("Idle")
+        top_row.addWidget(btn_refresh_all)
+        top_row.addWidget(progress)
+        top_row.addWidget(lbl_status)
+        top_row.addStretch(1)
+
+        overview_group = QtWidgets.QGroupBox("Keys Overview")
+        overview_group.setContentsMargins(6, 6, 6, 6)
+        overview_group.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Expanding
+        )
+        overview_layout = QtWidgets.QGridLayout(overview_group)
+        overview_layout.setContentsMargins(12, 28, 12, 12)
+        overview_layout.setHorizontalSpacing(12)
+        overview_layout.setVerticalSpacing(12)
+
+        cols = 4
+        for slot in range(ECC_MAX_KEYS + 1):
+            frame = QtWidgets.QFrame()
+            frame.setObjectName(f"eccSlotFrame{slot}")
+            frame.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
+            frame.setStyleSheet("QFrame { border: 1px solid #bdbdbd; border-radius: 8px; padding: 8px; }")
+            frame.setMinimumWidth(170)
+            frame.setFixedHeight(120)
+            frame.setSizePolicy(
+                QtWidgets.QSizePolicy.Policy.Preferred,
+                QtWidgets.QSizePolicy.Policy.Fixed
+            )
+            vbox = QtWidgets.QVBoxLayout(frame)
+            vbox.setContentsMargins(6, 6, 6, 6)
+            vbox.setSpacing(4)
+
+            title = QtWidgets.QLabel(f"Slot {slot}")
+            title.setStyleSheet(
+                "font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
+            title.setMinimumHeight(20)
+            status = QtWidgets.QLabel("● Unknown")
+            status.setStyleSheet(
+                "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
+            status.setMinimumHeight(20)
+
+            action_row = QtWidgets.QGridLayout()
+            action_row.setHorizontalSpacing(4)
+            action_row.setVerticalSpacing(4)
+            btn_primary = QtWidgets.QPushButton("Show")
+            btn_secondary = QtWidgets.QPushButton("Erase")
+            btn_refresh = QtWidgets.QPushButton("Refresh")
+            action_row.addWidget(btn_primary, 0, 0)
+            action_row.addWidget(btn_secondary, 0, 1)
+            action_row.addWidget(btn_refresh, 0, 0, 1, 2)
+
+            vbox.addWidget(title)
+            vbox.addWidget(status)
+            vbox.addLayout(action_row)
+
+            row = slot // cols
+            col = slot % cols
+            overview_layout.addWidget(frame, row, col)
+
+            ecc_slot_cards[slot] = {
+                "frame": frame,
+                "status": status,
+                "btn_primary": btn_primary,
+                "btn_secondary": btn_secondary,
+                "btn_refresh": btn_refresh,
+                "primary_action": None,
+                "secondary_action": None,
+            }
+            ecc_slot_states.setdefault(slot, "unknown")
+
+            btn_primary.clicked.connect(lambda _=False, s=slot: ecc_slot_cards[s]["primary_action"] and ecc_slot_cards[s]["primary_action"]())
+            btn_secondary.clicked.connect(lambda _=False, s=slot: ecc_slot_cards[s]["secondary_action"] and ecc_slot_cards[s]["secondary_action"]())
+            btn_refresh.clicked.connect(lambda _=False, s=slot: on_btnEccRefreshOne_click(s))
+
+            refresh_ecc_slot_card(slot)
+
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        scroll_content = QtWidgets.QWidget()
+        scroll_content_layout = QtWidgets.QVBoxLayout(scroll_content)
+        scroll_content_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_content_layout.setSpacing(0)
+        scroll_content_layout.addLayout(top_row)
+        scroll_content_layout.addWidget(overview_group)
+        scroll.setWidget(scroll_content)
+
+        window.layoutEcc.addWidget(scroll)
+
+        def on_btnEccRefreshAll_click():
+            if not ts:
+                QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+                return
+            btn_refresh_all.setEnabled(False)
+            progress.setValue(0)
+            lbl_status.setText("Refreshing...")
+            QtWidgets.QApplication.processEvents()
+            for slot in range(ECC_MAX_KEYS + 1):
+                lbl_status.setText(f"Reading slot {slot + 1}/{ECC_MAX_KEYS + 1}...")
+                try:
+                    key_info = ts.ecc_key_read(slot)
+                    ecc_slot_states[slot] = "present"
+                    ecc_slot_info[slot] = key_info
+                except TropicSquareECCInvalidKeyError:
+                    ecc_slot_states[slot] = "empty"
+                    ecc_slot_info.pop(slot, None)
+                except Exception:
+                    ecc_slot_states[slot] = "unknown"
+                    ecc_slot_info.pop(slot, None)
+                refresh_ecc_slot_card(slot)
+                progress.setValue(slot + 1)
+            lbl_status.setText("Done")
+            btn_refresh_all.setEnabled(True)
+
+        btn_refresh_all.clicked.connect(on_btnEccRefreshAll_click)
 
     def get_mcounter_index():
         idx_text = window.leMCounterIndex.text().strip()
@@ -2385,12 +2573,11 @@ def main():
     window.btnGetRandom.clicked.connect(on_btnbtnGetRandom_click)
     window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
 
-    window.btnECCRead.clicked.connect(on_btnECCRead_click)
-    window.btnECCGenerate.clicked.connect(on_btnECCGenerate_click)
-    window.btnECCStore.clicked.connect(on_btnECCStore_click)
-    window.btnECCErase.clicked.connect(on_btnECCErase_click)
-    window.leECCSlot.setValidator(QtGui.QIntValidator(0, 31))
     window.leMCounterIndex.setValidator(QtGui.QIntValidator(0, MCOUNTER_MAX))
+
+    for slot in range(ECC_MAX_KEYS + 1):
+        ecc_slot_states[slot] = "unknown"
+    create_ecc_overview()
 
     window.btnMCounterGet.clicked.connect(on_btnMCounterGet_click)
     window.btnMCounterInit.clicked.connect(on_btnMCounterInit_click)
