@@ -2690,6 +2690,8 @@ def main():
     window.btnMaintenanceDeepSleep.clicked.connect(on_btnMaintenanceDeepSleep_click)
     window.btnMaintenanceGetLogs.clicked.connect(on_btnMaintenanceGetLogs_click)
     window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
+    window.splitterChipIdTop.setStretchFactor(0, 1)
+    window.splitterChipIdTop.setStretchFactor(1, 1)
 
     for slot in range(ECC_MAX_KEYS + 1):
         ecc_slot_states[slot] = "unknown"

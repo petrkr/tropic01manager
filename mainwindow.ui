@@ -239,7 +239,11 @@
        </attribute>
        <layout class="QVBoxLayout" name="verticalLayout">
         <item>
-         <widget class="QGroupBox" name="groupBoxChipInfo">
+         <widget class="QSplitter" name="splitterChipIdTop">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <widget class="QGroupBox" name="groupBoxChipInfo">
           <property name="title">
            <string>Chip Information</string>
           </property>
@@ -371,10 +375,8 @@
             </widget>
            </item>
           </layout>
-         </widget>
-        </item>
-        <item>
-         <widget class="QGroupBox" name="groupBoxSerialNumber">
+          </widget>
+          <widget class="QGroupBox" name="groupBoxSerialNumber">
           <property name="title">
            <string>Serial Number</string>
           </property>
@@ -464,6 +466,7 @@
             </widget>
            </item>
           </layout>
+          </widget>
          </widget>
         </item>
        </layout>
