@@ -238,14 +238,14 @@ def setup_mcounter(window, bus, get_ts):
         top_row.addStretch(1)
         tab_layout.addLayout(top_row)
 
-        overview_group = QtWidgets.QGroupBox("Counters Overview")
+        overview_group = QtWidgets.QGroupBox("")
         overview_group.setContentsMargins(6, 6, 6, 6)
         overview_group.setSizePolicy(
             QtWidgets.QSizePolicy.Policy.Expanding,
             QtWidgets.QSizePolicy.Policy.Expanding,
         )
         overview_layout = QtWidgets.QGridLayout(overview_group)
-        overview_layout.setContentsMargins(12, 28, 12, 12)
+        overview_layout.setContentsMargins(12, 12, 12, 12)
         overview_layout.setHorizontalSpacing(12)
         overview_layout.setVerticalSpacing(12)
 

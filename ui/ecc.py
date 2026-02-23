@@ -350,14 +350,14 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
         top_row.addWidget(lbl_status)
         top_row.addStretch(1)
 
-        overview_group = QtWidgets.QGroupBox("Keys Overview")
+        overview_group = QtWidgets.QGroupBox("")
         overview_group.setContentsMargins(6, 6, 6, 6)
         overview_group.setSizePolicy(
             QtWidgets.QSizePolicy.Policy.Expanding,
             QtWidgets.QSizePolicy.Policy.Expanding,
         )
         overview_layout = QtWidgets.QGridLayout(overview_group)
-        overview_layout.setContentsMargins(12, 28, 12, 12)
+        overview_layout.setContentsMargins(12, 12, 12, 12)
         overview_layout.setHorizontalSpacing(12)
         overview_layout.setVerticalSpacing(12)
 
