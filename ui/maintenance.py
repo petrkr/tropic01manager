@@ -10,19 +10,10 @@ from tropicsquare.constants.l2 import (
 
 
 def setup_maintenance(window, bus, get_ts, has_secure_session, abort_session):
-    def require_l2():
-        ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return None
-        if not hasattr(ts, "_l2"):
-            QtWidgets.QMessageBox.critical(window, "Not Available", "L2 interface not available")
-            return None
-        return ts._l2
-
     def on_btnMaintenanceStartupReboot_click():
-        l2 = require_l2()
-        if l2 is None:
+        ts = get_ts()
+        if ts is None:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
         confirm = QtWidgets.QMessageBox.question(
             window,
@@ -36,14 +27,15 @@ def setup_maintenance(window, bus, get_ts, has_secure_session, abort_session):
         try:
             if has_secure_session():
                 abort_session()
-            l2.startup_req(STARTUP_REBOOT)
+            ts.reboot(STARTUP_REBOOT)
             QtWidgets.QMessageBox.information(window, "Reboot", "Reboot request sent")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Reboot Failed", str(e))
 
     def on_btnMaintenanceStartupBootloader_click():
-        l2 = require_l2()
-        if l2 is None:
+        ts = get_ts()
+        if ts is None:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
         confirm = QtWidgets.QMessageBox.question(
             window,
@@ -57,14 +49,15 @@ def setup_maintenance(window, bus, get_ts, has_secure_session, abort_session):
         try:
             if has_secure_session():
                 abort_session()
-            l2.startup_req(STARTUP_MAINTENANCE_REBOOT)
+            ts.reboot(STARTUP_MAINTENANCE_REBOOT)
             QtWidgets.QMessageBox.information(window, "Reboot Bootloader", "Bootloader reboot request sent")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Reboot Bootloader Failed", str(e))
 
     def on_btnMaintenanceSleep_click():
-        l2 = require_l2()
-        if l2 is None:
+        ts = get_ts()
+        if ts is None:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
         confirm = QtWidgets.QMessageBox.question(
             window,
@@ -76,14 +69,15 @@ def setup_maintenance(window, bus, get_ts, has_secure_session, abort_session):
         if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         try:
-            l2.sleep_req(SLEEP_MODE_SLEEP)
+            ts.sleep(SLEEP_MODE_SLEEP)
             QtWidgets.QMessageBox.information(window, "Sleep", "Sleep request sent")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Sleep Failed", str(e))
 
     def on_btnMaintenanceDeepSleep_click():
-        l2 = require_l2()
-        if l2 is None:
+        ts = get_ts()
+        if ts is None:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
             return
         confirm = QtWidgets.QMessageBox.question(
             window,
@@ -95,7 +89,7 @@ def setup_maintenance(window, bus, get_ts, has_secure_session, abort_session):
         if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         try:
-            l2.sleep_req(SLEEP_MODE_DEEP_SLEEP)
+            ts.sleep(SLEEP_MODE_DEEP_SLEEP)
             QtWidgets.QMessageBox.information(window, "Deep Sleep", "Deep sleep request sent")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Deep Sleep Failed", str(e))
