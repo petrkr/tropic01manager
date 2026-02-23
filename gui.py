@@ -299,12 +299,14 @@ def main():
             close_transport()
             ts = None
             update_connection_ui()
+            bus.emit("device_changed", connected=False)
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Connection Failed",
                                           f"Failed to connect to device:\n\n{str(e)}")
             close_transport()
             ts = None
             update_connection_ui()
+            bus.emit("device_changed", connected=False)
 
     def on_disconnect_click():
         """Disconnect from device"""
@@ -434,7 +436,7 @@ def main():
     window.splitterChipIdTop.setStretchFactor(0, 1)
     window.splitterChipIdTop.setStretchFactor(1, 1)
     setup_maintenance(window, bus, lambda: ts, has_secure_session, on_btnAbortSecureSession_click)
-    chip_id_refresh = setup_chip_id(window, lambda: ts)
+    chip_id_refresh = setup_chip_id(window, bus, lambda: ts)
     setup_info(window, bus, lambda: ts)
     setup_ping(window, bus, lambda: ts)
     setup_random_data(window, bus, lambda: ts)

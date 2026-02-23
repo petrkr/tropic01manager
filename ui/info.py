@@ -67,6 +67,13 @@ def parse_certificate_info(cert_data):
 
 
 def setup_info(window, bus, get_ts):
+    def clear_info():
+        window.lblRISCFWVersion.setText("")
+        window.lblSPECTFWVersion.setText("")
+        window.lblCertPubkey.setText("")
+        window.lblCertDateIssue.setText("")
+        window.lblCertDateExpire.setText("")
+
     def on_btn_get_info_click():
         ts = get_ts()
         if not ts:
@@ -117,9 +124,11 @@ def setup_info(window, bus, get_ts):
     window.btnSaveCert.clicked.connect(on_btn_save_cert_click)
 
     def on_device_changed(connected=False, **_):
-        enabled = bool(connected)
+        enabled = connected
         window.btnGetInfo.setEnabled(enabled)
         window.btnSaveCert.setEnabled(enabled)
+        if not connected:
+            clear_info()
 
     bus.on("device_changed", on_device_changed)
     on_device_changed(connected=False)

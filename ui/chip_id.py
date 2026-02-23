@@ -3,7 +3,24 @@ from __future__ import annotations
 from PyQt6 import QtWidgets
 
 
-def setup_chip_id(window, get_ts):
+def setup_chip_id(window, bus, get_ts):
+    def clear_chip_id():
+        window.lblChipIDVersion.setText("")
+        window.lblSiliconRev.setText("")
+        window.lblPackageType.setText("")
+        window.lblFabrication.setText("")
+        window.lblPartNumberID.setText("")
+        window.lblHSMVersion.setText("")
+        window.lblProgVersion.setText("")
+        window.lblBatchID.setText("")
+        window.lblPartNumberASCII.setText("")
+        window.lblSerialNumber.setText("")
+        window.lblSNFabID.setText("")
+        window.lblSNPartNumber.setText("")
+        window.lblLotID.setText("")
+        window.lblWaferID.setText("")
+        window.lblWaferCoords.setText("")
+
     def refresh_chip_id(chip_id=None):
         ts = get_ts()
         if chip_id is None and not ts:
@@ -40,5 +57,12 @@ def setup_chip_id(window, get_ts):
             window.lblWaferCoords.setText(f"({sn.x_coord}, {sn.y_coord})")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Error", f"Failed to get chip ID:\n{str(e)}")
+
+    def on_device_changed(connected=False, **_):
+        if not connected:
+            clear_chip_id()
+
+    bus.on("device_changed", on_device_changed)
+    on_device_changed(connected=False)
 
     return refresh_chip_id
