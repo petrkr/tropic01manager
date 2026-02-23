@@ -5,6 +5,12 @@ from tropicsquare.constants.ecc import (
     ECC_KEY_ORIGIN_STORED,
     ECC_MAX_KEYS
 )
+from tropicsquare.constants.l2 import (
+    STARTUP_REBOOT,
+    STARTUP_MAINTENANCE_REBOOT,
+    SLEEP_MODE_SLEEP,
+    SLEEP_MODE_DEEP_SLEEP
+)
 from tropicsquare.constants import MCOUNTER_MAX, MEM_DATA_MAX_SIZE, PAIRING_KEY_MAX, PAIRING_KEY_SIZE
 from tropicsquare.constants.pairing_keys import (
     FACTORY_PAIRING_KEY_INDEX,
@@ -227,6 +233,11 @@ def main():
         window.btnSaveCert.setEnabled(connected)
         window.btnPing.setEnabled(connected)
         window.btnGetRandom.setEnabled(connected)
+        window.btnMaintenanceStartupReboot.setEnabled(connected)
+        window.btnMaintenanceStartupBootloader.setEnabled(connected)
+        window.btnMaintenanceSleep.setEnabled(connected)
+        window.btnMaintenanceDeepSleep.setEnabled(connected)
+        window.btnMaintenanceGetLogs.setEnabled(connected)
         window.btnMCounterGet.setEnabled(connected)
         window.btnMCounterInit.setEnabled(connected)
         window.btnMCounterUpdate.setEnabled(connected)
@@ -667,6 +678,101 @@ def main():
             QtWidgets.QMessageBox.warning(window, "Invalid Input", str(e))
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Random Failed", str(e))
+
+    def require_l2():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return None
+        if not hasattr(ts, "_l2"):
+            QtWidgets.QMessageBox.critical(window, "Not Available", "L2 interface not available")
+            return None
+        return ts._l2
+
+    def on_btnMaintenanceStartupReboot_click():
+        l2 = require_l2()
+        if l2 is None:
+            return
+        confirm = QtWidgets.QMessageBox.question(
+            window,
+            "Reboot",
+            "Reboot device?",
+            QtWidgets.QMessageBox.StandardButton.Yes
+            | QtWidgets.QMessageBox.StandardButton.No
+        )
+        if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        try:
+            l2.startup_req(STARTUP_REBOOT)
+            QtWidgets.QMessageBox.information(window, "Reboot", "Reboot request sent")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Reboot Failed", str(e))
+
+    def on_btnMaintenanceStartupBootloader_click():
+        l2 = require_l2()
+        if l2 is None:
+            return
+        confirm = QtWidgets.QMessageBox.question(
+            window,
+            "Reboot Bootloader",
+            "Reboot to bootloader?",
+            QtWidgets.QMessageBox.StandardButton.Yes
+            | QtWidgets.QMessageBox.StandardButton.No
+        )
+        if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        try:
+            l2.startup_req(STARTUP_MAINTENANCE_REBOOT)
+            QtWidgets.QMessageBox.information(window, "Reboot Bootloader", "Bootloader reboot request sent")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Reboot Bootloader Failed", str(e))
+
+    def on_btnMaintenanceSleep_click():
+        l2 = require_l2()
+        if l2 is None:
+            return
+        confirm = QtWidgets.QMessageBox.question(
+            window,
+            "Sleep",
+            "Put device to sleep?",
+            QtWidgets.QMessageBox.StandardButton.Yes
+            | QtWidgets.QMessageBox.StandardButton.No
+        )
+        if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        try:
+            l2.sleep_req(SLEEP_MODE_SLEEP)
+            QtWidgets.QMessageBox.information(window, "Sleep", "Sleep request sent")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Sleep Failed", str(e))
+
+    def on_btnMaintenanceDeepSleep_click():
+        l2 = require_l2()
+        if l2 is None:
+            return
+        confirm = QtWidgets.QMessageBox.question(
+            window,
+            "Deep Sleep",
+            "Put device to deep sleep?",
+            QtWidgets.QMessageBox.StandardButton.Yes
+            | QtWidgets.QMessageBox.StandardButton.No
+        )
+        if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        try:
+            l2.sleep_req(SLEEP_MODE_DEEP_SLEEP)
+            QtWidgets.QMessageBox.information(window, "Deep Sleep", "Deep sleep request sent")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Deep Sleep Failed", str(e))
+
+    def on_btnMaintenanceGetLogs_click():
+        if not ts:
+            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
+            return
+        try:
+            log_text = ts.get_log()
+            window.pteMaintenanceLogs.setPlainText(log_text)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(window, "Get Logs Failed", str(e))
 
 
     def ecc_curve_name(curve: int) -> str:
@@ -2497,10 +2603,19 @@ def main():
             btn_init = QtWidgets.QPushButton("Init")
             btn_update = QtWidgets.QPushButton("Decrement")
             btn_refresh_one = QtWidgets.QPushButton("Refresh")
+            for btn in (btn_read, btn_init, btn_update, btn_refresh_one):
+                btn.setSizePolicy(
+                    QtWidgets.QSizePolicy.Policy.Expanding,
+                    QtWidgets.QSizePolicy.Policy.Fixed
+                )
+                btn.setMinimumWidth(0)
             action_row.addWidget(btn_read, 0, 0)
             action_row.addWidget(btn_init, 0, 1)
-            action_row.addWidget(btn_update, 1, 0)
-            action_row.addWidget(btn_refresh_one, 1, 1)
+            action_row.addWidget(btn_update, 0, 2)
+            action_row.addWidget(btn_refresh_one, 1, 0, 1, 3)
+            action_row.setColumnStretch(0, 1)
+            action_row.setColumnStretch(1, 1)
+            action_row.setColumnStretch(2, 1)
 
             vbox.addWidget(title)
             vbox.addWidget(status)
@@ -2571,6 +2686,11 @@ def main():
     window.btnSaveCert.clicked.connect(on_btn_save_cert_click)
     window.btnPing.clicked.connect(on_btnPing_click)
     window.btnGetRandom.clicked.connect(on_btnbtnGetRandom_click)
+    window.btnMaintenanceStartupReboot.clicked.connect(on_btnMaintenanceStartupReboot_click)
+    window.btnMaintenanceStartupBootloader.clicked.connect(on_btnMaintenanceStartupBootloader_click)
+    window.btnMaintenanceSleep.clicked.connect(on_btnMaintenanceSleep_click)
+    window.btnMaintenanceDeepSleep.clicked.connect(on_btnMaintenanceDeepSleep_click)
+    window.btnMaintenanceGetLogs.clicked.connect(on_btnMaintenanceGetLogs_click)
     window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
 
     window.leMCounterIndex.setValidator(QtGui.QIntValidator(0, MCOUNTER_MAX))

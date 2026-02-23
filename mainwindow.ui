@@ -1247,6 +1247,130 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tabMaintenance">
+       <attribute name="title">
+        <string>Maintenance</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="layoutMaintenance">
+        <item>
+         <widget class="QTabWidget" name="tabWidgetMaintenance">
+          <property name="currentIndex">
+           <number>0</number>
+          </property>
+          <widget class="QWidget" name="tabMaintenancePower">
+           <attribute name="title">
+            <string>Power</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="layoutMaintenancePower">
+            <item>
+             <widget class="QGroupBox" name="groupMaintenanceStartup">
+              <property name="title">
+               <string>Startup</string>
+              </property>
+              <layout class="QVBoxLayout" name="layoutMaintenanceStartup">
+               <item>
+                <widget class="QPushButton" name="btnMaintenanceStartupReboot">
+                 <property name="text">
+                  <string>Reboot</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="btnMaintenanceStartupBootloader">
+                 <property name="text">
+                  <string>Reboot Bootloader</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="groupMaintenanceSleep">
+              <property name="title">
+               <string>Sleep</string>
+              </property>
+              <layout class="QVBoxLayout" name="layoutMaintenanceSleep">
+               <item>
+                <widget class="QPushButton" name="btnMaintenanceSleep">
+                 <property name="text">
+                  <string>Sleep</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="btnMaintenanceDeepSleep">
+                 <property name="text">
+                  <string>Deep Sleep</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <spacer name="verticalSpacerMaintenancePower">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QWidget" name="tabMaintenanceLogs">
+           <attribute name="title">
+            <string>Logs</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="layoutMaintenanceLogs">
+            <item>
+             <layout class="QHBoxLayout" name="layoutMaintenanceLogsTop">
+              <item>
+               <widget class="QPushButton" name="btnMaintenanceGetLogs">
+                <property name="text">
+                 <string>Get Logs</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacerMaintenanceLogs">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPlainTextEdit" name="pteMaintenanceLogs">
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QWidget" name="tabMaintenanceFirmware">
+           <attribute name="title">
+            <string>Firmware</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="layoutMaintenanceFirmware"/>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
    </layout>
