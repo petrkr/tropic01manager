@@ -16,6 +16,7 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
     ecc_slot_cards = {}
     ecc_slot_states = {}
     ecc_slot_info = {}
+    ecc_refresh_all_btn = None
 
     def ecc_curve_name(curve: int) -> str:
         if curve == ECC_CURVE_P256:
@@ -134,9 +135,6 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
 
     def on_btnEccSignMessage_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         result = prompt_ecc_sign()
         if result is None:
             return
@@ -175,9 +173,6 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
 
     def on_btnEccRefreshOne_click(slot: int):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         try:
             key_info = ts.ecc_key_read(slot)
             ecc_slot_states[slot] = "present"
@@ -192,9 +187,6 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
 
     def on_btnEccGenerateFromOverview_click(slot: int):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         curve = prompt_ecc_curve(f"Generate ECC key in slot {slot}")
         if curve is None:
             return
@@ -207,9 +199,6 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
 
     def on_btnEccStoreFromOverview_click(slot: int):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         result = prompt_ecc_store()
         if result is None:
             return
@@ -236,9 +225,6 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
 
     def on_btnEccEraseFromOverview_click(slot: int):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         confirm = QtWidgets.QMessageBox.question(
             window,
             "ECC Erase",
@@ -308,6 +294,23 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
             card["btn_refresh"].setEnabled(False)
             card["primary_action"] = lambda s=slot: on_btnEccGenerateFromOverview_click(s)
             card["secondary_action"] = lambda s=slot: on_btnEccStoreFromOverview_click(s)
+        elif state == "no-session":
+            status.setText("● No session")
+            status.setStyleSheet(f"color: #666666; {base_style}")
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #666666; border-radius: 8px; padding: 8px; "
+                f"background-color: rgba(102, 102, 102, 0.09); }}"
+            )
+            card["btn_primary"].setText("Show")
+            card["btn_primary"].setVisible(False)
+            card["btn_primary"].setEnabled(False)
+            card["btn_secondary"].setText("Erase")
+            card["btn_secondary"].setVisible(False)
+            card["btn_secondary"].setEnabled(False)
+            card["btn_refresh"].setVisible(False)
+            card["btn_refresh"].setEnabled(False)
+            card["primary_action"] = None
+            card["secondary_action"] = None
         else:
             status.setText("● Unknown")
             status.setStyleSheet(f"color: #666666; {base_style}")
@@ -327,10 +330,12 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
             card["secondary_action"] = None
 
     def create_ecc_overview():
+        nonlocal ecc_refresh_all_btn
         top_row = QtWidgets.QHBoxLayout()
         top_row.setContentsMargins(0, 0, 0, 0)
         top_row.setSpacing(8)
         btn_refresh_all = QtWidgets.QPushButton("Refresh All")
+        ecc_refresh_all_btn = btn_refresh_all
         btn_sign_message = QtWidgets.QPushButton("Sign Message")
         progress = QtWidgets.QProgressBar()
         progress.setMinimum(0)
@@ -441,10 +446,6 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
 
         def on_btnEccRefreshAll_click():
             ts = get_ts()
-            if not ts:
-                QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-                return
-            btn_refresh_all.setEnabled(False)
             progress.setValue(0)
             lbl_status.setText("Refreshing...")
             QtWidgets.QApplication.processEvents()
@@ -463,23 +464,27 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
                 refresh_ecc_slot_card(slot)
                 progress.setValue(slot + 1)
             lbl_status.setText("Done")
-            btn_refresh_all.setEnabled(True)
 
         btn_refresh_all.clicked.connect(on_btnEccRefreshAll_click)
         btn_sign_message.clicked.connect(on_btnEccSignMessage_click)
         window.btnEccSignMessage = btn_sign_message
 
-    def on_session_changed(**_):
+    def on_session_changed(has_session=False, **_):
+        if ecc_refresh_all_btn is not None:
+            ecc_refresh_all_btn.setEnabled(has_session)
         for slot in range(ECC_MAX_KEYS + 1):
-            ecc_slot_states[slot] = "unknown"
+            ecc_slot_states[slot] = "unknown" if has_session else "no-session"
             ecc_slot_info.pop(slot, None)
             refresh_ecc_slot_card(slot)
 
-    def on_device_changed(**_):
+    def on_device_changed(connected=False, **_):
+        if ecc_refresh_all_btn is not None:
+            ecc_refresh_all_btn.setEnabled(False)
         for slot in range(ECC_MAX_KEYS + 1):
-            ecc_slot_states[slot] = "unknown"
+            ecc_slot_states[slot] = "no-session"
             ecc_slot_info.pop(slot, None)
             refresh_ecc_slot_card(slot)
+        window.btnEccSignMessage.setEnabled(bool(connected))
 
     for slot in range(ECC_MAX_KEYS + 1):
         ecc_slot_states[slot] = "unknown"
@@ -487,8 +492,4 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
 
     bus.on("session_changed", on_session_changed)
     bus.on("device_changed", on_device_changed)
-
-    def set_enabled(enabled: bool):
-        window.btnEccSignMessage.setEnabled(enabled)
-
-    return set_enabled
+    on_device_changed(connected=False)

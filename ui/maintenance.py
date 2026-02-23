@@ -12,9 +12,6 @@ from tropicsquare.constants.l2 import (
 def setup_maintenance(window, bus, get_ts, has_secure_session, abort_session):
     def on_btnMaintenanceStartupReboot_click():
         ts = get_ts()
-        if ts is None:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         confirm = QtWidgets.QMessageBox.question(
             window,
             "Reboot",
@@ -34,9 +31,6 @@ def setup_maintenance(window, bus, get_ts, has_secure_session, abort_session):
 
     def on_btnMaintenanceStartupBootloader_click():
         ts = get_ts()
-        if ts is None:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         confirm = QtWidgets.QMessageBox.question(
             window,
             "Reboot Bootloader",
@@ -108,8 +102,13 @@ def setup_maintenance(window, bus, get_ts, has_secure_session, abort_session):
     def on_session_changed(**_):
         window.pteMaintenanceLogs.clear()
 
-    def on_device_changed(**_):
+    def on_device_changed(connected=False, **_):
         window.pteMaintenanceLogs.clear()
+        window.btnMaintenanceStartupReboot.setEnabled(bool(connected))
+        window.btnMaintenanceStartupBootloader.setEnabled(bool(connected))
+        window.btnMaintenanceSleep.setEnabled(bool(connected))
+        window.btnMaintenanceDeepSleep.setEnabled(bool(connected))
+        window.btnMaintenanceGetLogs.setEnabled(bool(connected))
 
     window.btnMaintenanceStartupReboot.clicked.connect(on_btnMaintenanceStartupReboot_click)
     window.btnMaintenanceStartupBootloader.clicked.connect(on_btnMaintenanceStartupBootloader_click)
@@ -119,3 +118,4 @@ def setup_maintenance(window, bus, get_ts, has_secure_session, abort_session):
 
     bus.on("session_changed", on_session_changed)
     bus.on("device_changed", on_device_changed)
+    on_device_changed(connected=False)

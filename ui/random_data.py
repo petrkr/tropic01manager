@@ -1,15 +1,9 @@
 from __future__ import annotations
 
 from PyQt6 import QtWidgets, QtGui
-from tropicsquare.exceptions import TropicSquareNoSession
-
-
-def setup_random_data(window, get_ts):
+def setup_random_data(window, bus, get_ts):
     def on_btnGetRandom_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
 
         try:
             number_text = window.leRandomBytesNum.text().strip()
@@ -19,8 +13,6 @@ def setup_random_data(window, get_ts):
             if number > 255:
                 raise ValueError("Number must be less than 256")
             window.pteRandomBytes.setPlainText(ts.get_random(number).hex())
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except ValueError as e:
             QtWidgets.QMessageBox.warning(window, "Invalid Input", str(e))
         except Exception as e:
@@ -29,7 +21,12 @@ def setup_random_data(window, get_ts):
     window.leRandomBytesNum.setValidator(QtGui.QIntValidator(0, 255))
     window.btnGetRandom.clicked.connect(on_btnGetRandom_click)
 
-    def set_enabled(enabled: bool):
-        window.btnGetRandom.setEnabled(enabled)
+    def on_device_changed(connected=False, **_):
+        window.btnGetRandom.setEnabled(False)
 
-    return set_enabled
+    def on_session_changed(has_session=False, **_):
+        window.btnGetRandom.setEnabled(has_session)
+
+    bus.on("device_changed", on_device_changed)
+    bus.on("session_changed", on_session_changed)
+    on_device_changed(connected=False)

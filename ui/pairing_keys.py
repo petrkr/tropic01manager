@@ -5,15 +5,15 @@ from tropicsquare.constants import PAIRING_KEY_MAX, PAIRING_KEY_SIZE
 from tropicsquare.exceptions import (
     TropicSquarePairingKeyEmptyError,
     TropicSquarePairingKeyInvalidError,
-    TropicSquareNoSession,
     TropicSquareCommandError,
 )
 
 
-def setup_pairing_keys(window, bus, get_ts, has_secure_session):
+def setup_pairing_keys(window, bus, get_ts):
     pairing_slot_cards = {}
     pairing_slot_states = {}
     pairing_slot_pubkey_prefix = {}
+    refresh_in_progress = False
 
     def format_pubkey_prefix(key: bytes) -> str:
         return " ".join(f"{b:02x}" for b in key[:8])
@@ -23,14 +23,7 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
         if not card:
             return
         frame = card["frame"]
-        cached_state = pairing_slot_states.get(slot, "unknown")
-        ts = get_ts()
-        if ts is None:
-            state = "disconnected"
-        elif not has_secure_session():
-            state = "no-session"
-        else:
-            state = cached_state
+        state = pairing_slot_states.get(slot, "unknown")
         status = card["status"]
         btn_write = card["btn_write"]
         btn_show = card["btn_show"]
@@ -89,15 +82,6 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
                 "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
                 "border-radius: 6px; padding: 6px 8px;"
             )
-        elif state == "disconnected":
-            frame.setStyleSheet(
-                f"{frame_selector} {{ border: 1px solid #666666; border-radius: 8px; padding: 8px; background-color: rgba(102, 102, 102, 0.09); }}"
-            )
-            status.setText("● Disconnected")
-            status.setStyleSheet(
-                "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
-                "border-radius: 6px; padding: 6px 8px;"
-            )
         else:
             frame.setStyleSheet(
                 f"{frame_selector} {{ border: 1px solid #7a7a7a; border-radius: 8px; padding: 8px; background-color: rgba(122, 122, 122, 0.11); }}"
@@ -128,9 +112,6 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
 
     def on_btnPairingKeyShowFromOverview_click(slot):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         try:
             slot = get_pairing_key_slot_for_overview(slot)
             key = ts.pairing_key_read(slot)
@@ -153,9 +134,6 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
 
     def on_btnPairingKeyWriteFromOverview_click(slot):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         initial = ""
         text, ok = QtWidgets.QInputDialog.getMultiLineText(
             window,
@@ -205,8 +183,6 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
             pairing_slot_pubkey_prefix[slot] = format_pubkey_prefix(key)
             refresh_pairing_slot_card(slot)
             QtWidgets.QMessageBox.information(window, "Pairing Key Write", "Public key written successfully")
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except TropicSquareCommandError as e:
             if "0x3c" in str(e).lower():
                 QtWidgets.QMessageBox.critical(
@@ -220,16 +196,13 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
             QtWidgets.QMessageBox.critical(window, "Pairing Key Write Failed", str(e))
 
     def on_btnPairingSlotsRefresh_click():
+        nonlocal refresh_in_progress
+        if refresh_in_progress:
+            return
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-        if not has_secure_session():
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-            return
 
         total = PAIRING_KEY_MAX + 1
-        window.btnPairingSlotsRefresh.setEnabled(False)
+        refresh_in_progress = True
         window.pbPairingSlotsRefresh.setRange(0, total)
         window.pbPairingSlotsRefresh.setValue(0)
         window.lblPairingSlotsRefresh.setText("Starting...")
@@ -259,16 +232,10 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
             window.pbPairingSlotsRefresh.setValue(total)
             window.lblPairingSlotsRefresh.setText("Done")
         finally:
-            window.btnPairingSlotsRefresh.setEnabled(True)
+            refresh_in_progress = False
 
     def on_btnPairingSlotRefresh_click(slot):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-        if not has_secure_session():
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-            return
 
         slot = get_pairing_key_slot_for_overview(slot)
         window.lblPairingSlotsRefresh.setText(f"Reading slot {slot + 1}/{PAIRING_KEY_MAX + 1}...")
@@ -291,9 +258,6 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
 
     def on_btnPairingKeyInvalidate_click(slot):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         slot = get_pairing_key_slot_for_overview(slot)
         confirm = QtWidgets.QMessageBox.warning(
             window,
@@ -309,8 +273,6 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
             pairing_slot_pubkey_prefix.pop(slot, None)
             QtWidgets.QMessageBox.information(window, "Pairing Key Invalidate", f"Slot {slot} invalidated.")
             refresh_pairing_slot_card(slot)
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except TropicSquarePairingKeyInvalidError:
             pairing_slot_states[slot] = "invalidated"
             pairing_slot_pubkey_prefix.pop(slot, None)
@@ -419,10 +381,21 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
         btn_refresh.clicked.connect(on_btnPairingSlotsRefresh_click)
         refresh_pairing_keys_overview()
 
-    def on_session_changed(**_):
-        refresh_pairing_keys_overview()
+    def on_session_changed(has_session=False, **_):
+        if has_session:
+            reset_pairing_keys_state()
+        else:
+            for slot in range(PAIRING_KEY_MAX + 1):
+                pairing_slot_states[slot] = "no-session"
+            pairing_slot_pubkey_prefix.clear()
+            refresh_pairing_keys_overview()
+        window.btnPairingSlotsRefresh.setEnabled(has_session and not refresh_in_progress)
 
-    def on_device_changed(**_):
+    def on_device_changed(connected=False, **_):
+        window.btnPairingSlotsRefresh.setEnabled(False)
+        for slot in range(PAIRING_KEY_MAX + 1):
+            pairing_slot_states[slot] = "no-session"
+        pairing_slot_pubkey_prefix.clear()
         refresh_pairing_keys_overview()
 
     for slot in range(PAIRING_KEY_MAX + 1):
@@ -431,9 +404,4 @@ def setup_pairing_keys(window, bus, get_ts, has_secure_session):
 
     bus.on("session_changed", on_session_changed)
     bus.on("device_changed", on_device_changed)
-
-    def set_enabled(enabled: bool):
-        window.btnPairingSlotsRefresh.setEnabled(enabled)
-        refresh_pairing_keys_overview()
-
-    return set_enabled, reset_pairing_keys_state
+    on_device_changed(connected=False)

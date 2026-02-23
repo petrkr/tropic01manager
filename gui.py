@@ -44,15 +44,6 @@ def main():
     settings_initialized = False
     current_pairing_pubkey = None
     current_pairing_index = None
-    ecc_set_enabled = None
-    mcounter_set_enabled = None
-    pairing_set_enabled = None
-    pairing_reset_state = None
-    config_set_enabled = None
-    mem_set_enabled = None
-    info_set_enabled = None
-    ping_set_enabled = None
-    random_set_enabled = None
     chip_id_refresh = None
     bus = EventBus()
 
@@ -126,29 +117,6 @@ def main():
             window.lblConnectionTarget.setText(f"({label} {target})".strip())
         else:
             window.lblConnectionTarget.setText("")
-
-        # Enable/disable device operation buttons based on connection
-        if info_set_enabled is not None:
-            info_set_enabled(connected)
-        if ping_set_enabled is not None:
-            ping_set_enabled(connected)
-        if random_set_enabled is not None:
-            random_set_enabled(connected)
-        window.btnMaintenanceStartupReboot.setEnabled(connected)
-        window.btnMaintenanceStartupBootloader.setEnabled(connected)
-        window.btnMaintenanceSleep.setEnabled(connected)
-        window.btnMaintenanceDeepSleep.setEnabled(connected)
-        window.btnMaintenanceGetLogs.setEnabled(connected)
-        if ecc_set_enabled is not None:
-            ecc_set_enabled(connected)
-        if mcounter_set_enabled is not None:
-            mcounter_set_enabled(connected)
-        if pairing_set_enabled is not None:
-            pairing_set_enabled(connected)
-        if mem_set_enabled is not None:
-            mem_set_enabled(connected)
-        if config_set_enabled is not None:
-            config_set_enabled(connected)
 
     def on_driver_type_changed():
         """Update parameter labels and defaults when driver type changes"""
@@ -390,8 +358,6 @@ def main():
             if ts.start_secure_session(key_index, bytes(priv), bytes(pub)):
                 current_pairing_pubkey = pub
                 current_pairing_index = key_index
-                if pairing_reset_state is not None:
-                    pairing_reset_state()
                 update_connection_ui()  # Update UI to show active session
                 bus.emit("session_changed", has_session=True)
         except TropicSquareHandshakeError as e:
@@ -469,15 +435,15 @@ def main():
     window.splitterChipIdTop.setStretchFactor(1, 1)
     setup_maintenance(window, bus, lambda: ts, has_secure_session, on_btnAbortSecureSession_click)
     chip_id_refresh = setup_chip_id(window, lambda: ts)
-    info_set_enabled = setup_info(window, lambda: ts)
-    ping_set_enabled = setup_ping(window, lambda: ts)
-    random_set_enabled = setup_random_data(window, lambda: ts)
+    setup_info(window, bus, lambda: ts)
+    setup_ping(window, bus, lambda: ts)
+    setup_random_data(window, bus, lambda: ts)
 
-    ecc_set_enabled = setup_ecc(window, bus, lambda: ts, parse_hex_bytes)
-    mcounter_set_enabled = setup_mcounter(window, bus, lambda: ts, has_secure_session)
-    pairing_set_enabled, pairing_reset_state = setup_pairing_keys(window, bus, lambda: ts, has_secure_session)
-    config_set_enabled = setup_config_tab(window, lambda: ts)
-    mem_set_enabled = setup_mem_data(window, lambda: ts)
+    setup_ecc(window, bus, lambda: ts, parse_hex_bytes)
+    setup_mcounter(window, bus, lambda: ts)
+    setup_pairing_keys(window, bus, lambda: ts)
+    setup_config_tab(window, bus, lambda: ts)
+    setup_mem_data(window, bus, lambda: ts)
 
     window.cmbPairingProfile.clear()
     window.cmbPairingProfile.addItem("Factory PROD0 (PH0)", "prod0")

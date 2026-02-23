@@ -4,10 +4,20 @@ import copy
 
 from PyQt6 import QtWidgets, QtCore, QtGui
 from tropicsquare.constants import config as cfg_constants
-from tropicsquare.exceptions import TropicSquareNoSession
 
 
-def setup_config_tab(window, get_ts):
+def setup_config_tab(window, bus, get_ts):
+    def set_session_controls(enabled: bool):
+        window.btnRConfigRead.setEnabled(enabled)
+        window.btnRConfigWrite.setEnabled(enabled)
+        window.btnRConfigErase.setEnabled(enabled)
+        window.btnIConfigRead.setEnabled(enabled)
+        window.btnIConfigWrite.setEnabled(enabled)
+        window.btnRConfigBulkReadAll.setEnabled(enabled)
+        window.btnRConfigBulkDiscard.setEnabled(enabled)
+        window.btnRConfigBulkApply.setEnabled(enabled)
+        window.tblRConfigBulk.setEnabled(enabled)
+
     def clear_layout(layout):
         while layout.count():
             item = layout.takeAt(0)
@@ -438,9 +448,6 @@ def setup_config_tab(window, get_ts):
 
     def on_btnRConfigBulkReadAll_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         total = len(getattr(window, "_cfg_items", []))
         window.btnRConfigBulkReadAll.setEnabled(False)
         window.pbRConfigBulkProgress.setRange(0, total if total else 1)
@@ -468,14 +475,11 @@ def setup_config_tab(window, get_ts):
                     select_rconfig_bulk_row(first_addr)
             window.pbRConfigBulkProgress.setValue(total if total else 1)
             window.lblRConfigBulkProgress.setText("Done")
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-            window.lblRConfigBulkProgress.setText("No session")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "R-Config Read All Failed", str(e))
             window.lblRConfigBulkProgress.setText("Failed")
         finally:
-            window.btnRConfigBulkReadAll.setEnabled(get_ts() is not None)
+            window.btnRConfigBulkReadAll.setEnabled(window.btnRConfigRead.isEnabled())
 
     def on_btnRConfigBulkDiscard_click():
         snapshot = getattr(window, "_rconfig_bulk_snapshot", {})
@@ -495,9 +499,6 @@ def setup_config_tab(window, get_ts):
 
     def on_btnRConfigBulkApply_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         snapshot = getattr(window, "_rconfig_bulk_snapshot", {})
         current = getattr(window, "_rconfig_bulk_current", {})
         if not snapshot or not current:
@@ -538,20 +539,14 @@ def setup_config_tab(window, get_ts):
             window.pbRConfigBulkProgress.setValue(progress_total)
             window.lblRConfigBulkProgress.setText("Done")
             QtWidgets.QMessageBox.information(window, "R-Config Apply", "Configuration applied successfully")
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-            window.lblRConfigBulkProgress.setText("No session")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "R-Config Apply Failed", str(e))
             window.lblRConfigBulkProgress.setText("Failed")
         finally:
-            window.btnRConfigBulkApply.setEnabled(get_ts() is not None)
+            window.btnRConfigBulkApply.setEnabled(window.btnRConfigRead.isEnabled())
 
     def on_btnRConfigRead_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         try:
             address = window.cmbRConfigReg.currentData()
             config = ts.r_config_read(address)
@@ -559,16 +554,11 @@ def setup_config_tab(window, get_ts):
             window._rconfig_fields = render_config_details(window.layoutRConfigDetails, config, editable=True)
             bind_uap_fields_to_raw_label(window._rconfig_fields, refresh_rconfig_raw_label)
             refresh_rconfig_raw_label()
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "R-Config Read Failed", str(e))
 
     def on_btnIConfigRead_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         try:
             address = window.cmbIConfigReg.currentData()
             config = ts.i_config_read(address)
@@ -576,16 +566,11 @@ def setup_config_tab(window, get_ts):
             window._iconfig_fields = render_config_details(window.layoutIConfigDetails, config, editable=True)
             bind_uap_fields_to_raw_label(window._iconfig_fields, refresh_iconfig_raw_label)
             refresh_iconfig_raw_label()
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "I-Config Read Failed", str(e))
 
     def on_btnRConfigWrite_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         config = getattr(window, "_rconfig_current", None)
         fields = getattr(window, "_rconfig_fields", [])
         if config is None:
@@ -600,16 +585,11 @@ def setup_config_tab(window, get_ts):
             ts.r_config_write(address, new_config)
             QtWidgets.QMessageBox.information(window, "R-Config Write", "Config written successfully")
             on_btnRConfigRead_click()
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "R-Config Write Failed", str(e))
 
     def on_btnRConfigErase_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         confirm = QtWidgets.QMessageBox.warning(
             window,
             "R-Config Erase",
@@ -622,16 +602,11 @@ def setup_config_tab(window, get_ts):
             ts.r_config_erase()
             QtWidgets.QMessageBox.information(window, "R-Config Erase", "R-CONFIG erased successfully")
             on_btnRConfigRead_click()
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "R-Config Erase Failed", str(e))
 
     def on_btnIConfigWrite_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         config = getattr(window, "_iconfig_current", None)
         fields = getattr(window, "_iconfig_fields", [])
         if config is None:
@@ -657,8 +632,6 @@ def setup_config_tab(window, get_ts):
             ts.i_config_write(address, new_config)
             QtWidgets.QMessageBox.information(window, "I-Config Write", "Config written successfully")
             on_btnIConfigRead_click()
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "I-Config Write Failed", str(e))
 
@@ -726,15 +699,10 @@ def setup_config_tab(window, get_ts):
     window.btnRConfigBulkApply.clicked.connect(on_btnRConfigBulkApply_click)
     window.tblRConfigBulk.itemSelectionChanged.connect(on_tblRConfigBulk_selection_changed)
 
-    def set_enabled(enabled: bool):
-        window.btnRConfigRead.setEnabled(enabled)
-        window.btnRConfigWrite.setEnabled(enabled)
-        window.btnRConfigErase.setEnabled(enabled)
-        window.btnIConfigRead.setEnabled(enabled)
-        window.btnIConfigWrite.setEnabled(enabled)
-        window.btnRConfigBulkReadAll.setEnabled(enabled)
-        window.btnRConfigBulkDiscard.setEnabled(enabled)
-        window.btnRConfigBulkApply.setEnabled(enabled)
-        window.tblRConfigBulk.setEnabled(enabled)
-
-    return set_enabled
+    def on_device_changed(connected=False, **_):
+        set_session_controls(False)
+    def on_session_changed(has_session=False, **_):
+        set_session_controls(has_session)
+    bus.on("device_changed", on_device_changed)
+    bus.on("session_changed", on_session_changed)
+    on_device_changed(connected=False)

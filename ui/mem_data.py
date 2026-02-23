@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from PyQt6 import QtWidgets, QtGui
 from tropicsquare.constants import MEM_DATA_MAX_SIZE
-from tropicsquare.exceptions import TropicSquareNoSession
-
-
-def setup_mem_data(window, get_ts):
+def setup_mem_data(window, bus, get_ts):
     def get_mem_slot():
         slot_text = window.leMemSlot.text().strip()
         if not slot_text:
@@ -31,16 +28,11 @@ def setup_mem_data(window, get_ts):
 
     def on_btnMemRead_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         try:
             slot = get_mem_slot()
             data = ts.mem_data_read(slot)
             window.pteMemHex.setPlainText(data.hex())
             window.pteMemText.setPlainText(data.decode("utf-8", "replace"))
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except ValueError as e:
             QtWidgets.QMessageBox.warning(window, "Invalid Input", str(e))
         except Exception as e:
@@ -48,9 +40,6 @@ def setup_mem_data(window, get_ts):
 
     def on_btnMemWrite_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         try:
             slot = get_mem_slot()
             data = parse_mem_input()
@@ -59,8 +48,6 @@ def setup_mem_data(window, get_ts):
             ts.mem_data_write(data, slot)
             on_btnMemRead_click()
             QtWidgets.QMessageBox.information(window, "MEM Write", "Data written successfully")
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except ValueError as e:
             QtWidgets.QMessageBox.warning(window, "Invalid Input", str(e))
         except Exception as e:
@@ -68,9 +55,6 @@ def setup_mem_data(window, get_ts):
 
     def on_btnMemErase_click():
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
         try:
             slot = get_mem_slot()
             confirm = QtWidgets.QMessageBox.question(
@@ -85,8 +69,6 @@ def setup_mem_data(window, get_ts):
             window.pteMemHex.setPlainText("")
             window.pteMemText.setPlainText("")
             QtWidgets.QMessageBox.information(window, "MEM Erase", "Data erased successfully")
-        except TropicSquareNoSession:
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
         except ValueError as e:
             QtWidgets.QMessageBox.warning(window, "Invalid Input", str(e))
         except Exception as e:
@@ -98,7 +80,8 @@ def setup_mem_data(window, get_ts):
     window.rbMemHex.setChecked(True)
     window.leMemSlot.setValidator(QtGui.QIntValidator(0, 511))
 
-    def set_enabled(enabled: bool):
+    def on_device_changed(connected=False, **_):
+        enabled = False
         window.btnMemRead.setEnabled(enabled)
         window.btnMemWrite.setEnabled(enabled)
         window.btnMemErase.setEnabled(enabled)
@@ -107,4 +90,16 @@ def setup_mem_data(window, get_ts):
         window.rbMemHex.setEnabled(enabled)
         window.rbMemText.setEnabled(enabled)
 
-    return set_enabled
+    def on_session_changed(has_session=False, **_):
+        enabled = has_session
+        window.btnMemRead.setEnabled(enabled)
+        window.btnMemWrite.setEnabled(enabled)
+        window.btnMemErase.setEnabled(enabled)
+        window.leMemSlot.setEnabled(enabled)
+        window.pteMemInput.setEnabled(enabled)
+        window.rbMemHex.setEnabled(enabled)
+        window.rbMemText.setEnabled(enabled)
+
+    bus.on("device_changed", on_device_changed)
+    bus.on("session_changed", on_session_changed)
+    on_device_changed(connected=False)

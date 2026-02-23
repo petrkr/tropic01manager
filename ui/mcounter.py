@@ -5,7 +5,7 @@ from tropicsquare.constants import MCOUNTER_MAX
 from tropicsquare.exceptions import TropicSquareCounterInvalidError
 
 
-def setup_mcounter(window, bus, get_ts, has_secure_session):
+def setup_mcounter(window, bus, get_ts):
     mcounter_cards = {}
     mcounter_states = {}
     mcounter_values = {}
@@ -21,13 +21,7 @@ def setup_mcounter(window, bus, get_ts, has_secure_session):
         btn_update = card["btn_update"]
         btn_refresh_one = card["btn_refresh_one"]
 
-        ts = get_ts()
-        if ts is None:
-            state = "disconnected"
-        elif not has_secure_session():
-            state = "no-session"
-        else:
-            state = mcounter_states.get(index, "unknown")
+        state = mcounter_states.get(index, "unknown")
 
         btn_read.setVisible(False)
         btn_init.setVisible(False)
@@ -88,16 +82,6 @@ def setup_mcounter(window, bus, get_ts, has_secure_session):
                 "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
                 "border-radius: 6px; padding: 6px 8px;"
             )
-        elif state == "disconnected":
-            frame.setStyleSheet(
-                f"{frame_selector} {{ border: 1px solid #666666; border-radius: 8px; padding: 8px; "
-                f"background-color: rgba(102, 102, 102, 0.09); }}"
-            )
-            status.setText("● Disconnected")
-            status.setStyleSheet(
-                "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
-                "border-radius: 6px; padding: 6px 8px;"
-            )
         else:
             frame.setStyleSheet(
                 f"{frame_selector} {{ border: 1px solid #7a7a7a; border-radius: 8px; padding: 8px; "
@@ -125,12 +109,6 @@ def setup_mcounter(window, bus, get_ts, has_secure_session):
 
     def on_btnMCounterReadFromOverview_click(index):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-        if not has_secure_session():
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-            return
         idx = int(index)
         try:
             value = read_mcounter_slot(idx)
@@ -145,12 +123,6 @@ def setup_mcounter(window, bus, get_ts, has_secure_session):
 
     def on_btnMCounterInitFromOverview_click(index):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-        if not has_secure_session():
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-            return
         idx = int(index)
         text, ok = QtWidgets.QInputDialog.getText(
             window,
@@ -181,12 +153,6 @@ def setup_mcounter(window, bus, get_ts, has_secure_session):
 
     def on_btnMCounterUpdateFromOverview_click(index):
         ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-        if not has_secure_session():
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-            return
         idx = int(index)
         try:
             ts.mcounter_update(idx)
@@ -201,13 +167,6 @@ def setup_mcounter(window, bus, get_ts, has_secure_session):
             QtWidgets.QMessageBox.critical(window, "MCounter Update Failed", str(e))
 
     def on_btnMCounterRefreshOne_click(index):
-        ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-        if not has_secure_session():
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-            return
         idx = int(index)
         window.lblMCounterRefreshStatus.setText(f"Reading counter {idx + 1}/{MCOUNTER_MAX + 1}...")
         QtWidgets.QApplication.processEvents()
@@ -224,14 +183,6 @@ def setup_mcounter(window, bus, get_ts, has_secure_session):
         window.lblMCounterRefreshStatus.setText("Done")
 
     def on_btnMCounterRefreshAll_click():
-        ts = get_ts()
-        if not ts:
-            QtWidgets.QMessageBox.warning(window, "Not Connected", "Please connect to device first")
-            return
-        if not has_secure_session():
-            QtWidgets.QMessageBox.warning(window, "No Session", "No secure session established")
-            return
-
         total = MCOUNTER_MAX + 1
         window.btnMCounterRefreshAll.setEnabled(False)
         window.pbMCounterRefresh.setRange(0, total)
@@ -389,23 +340,21 @@ def setup_mcounter(window, bus, get_ts, has_secure_session):
         btn_refresh_all.clicked.connect(on_btnMCounterRefreshAll_click)
         refresh_mcounter_overview()
 
-    def reset_mcounter_state():
+    def reset_mcounter_state(state: str):
         for idx in range(MCOUNTER_MAX + 1):
-            mcounter_states[idx] = "unknown"
+            mcounter_states[idx] = state
             mcounter_values.pop(idx, None)
         refresh_mcounter_overview()
 
-    def on_session_changed(**_):
-        reset_mcounter_state()
+    def on_session_changed(has_session=False, **_):
+        reset_mcounter_state("unknown" if has_session else "no-session")
+        window.btnMCounterRefreshAll.setEnabled(has_session)
 
-    def on_device_changed(**_):
-        reset_mcounter_state()
+    def on_device_changed(connected=False, **_):
+        reset_mcounter_state("no-session")
+        window.btnMCounterRefreshAll.setEnabled(False)
 
     create_mcounter_status_tab()
     bus.on("session_changed", on_session_changed)
     bus.on("device_changed", on_device_changed)
-
-    def set_enabled(enabled: bool):
-        window.btnMCounterRefreshAll.setEnabled(enabled)
-
-    return set_enabled
+    on_device_changed(connected=False)

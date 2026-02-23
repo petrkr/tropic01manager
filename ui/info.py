@@ -66,7 +66,7 @@ def parse_certificate_info(cert_data):
         return (None, None, None)
 
 
-def setup_info(window, get_ts):
+def setup_info(window, bus, get_ts):
     def on_btn_get_info_click():
         ts = get_ts()
         if not ts:
@@ -116,8 +116,10 @@ def setup_info(window, get_ts):
     window.btnGetInfo.clicked.connect(on_btn_get_info_click)
     window.btnSaveCert.clicked.connect(on_btn_save_cert_click)
 
-    def set_enabled(enabled: bool):
+    def on_device_changed(connected=False, **_):
+        enabled = bool(connected)
         window.btnGetInfo.setEnabled(enabled)
         window.btnSaveCert.setEnabled(enabled)
 
-    return set_enabled
+    bus.on("device_changed", on_device_changed)
+    on_device_changed(connected=False)
