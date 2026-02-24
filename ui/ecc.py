@@ -9,7 +9,11 @@ from tropicsquare.constants.ecc import (
     ECC_KEY_ORIGIN_STORED,
     ECC_MAX_KEYS,
 )
-from tropicsquare.exceptions import TropicSquareECCInvalidKeyError
+from tropicsquare.exceptions import (
+    TropicSquareECCInvalidKeyError,
+    TropicSquareError,
+    TropicSquareUnauthorizedError,
+)
 
 
 def setup_ecc(window, bus, get_ts, parse_hex_bytes):
@@ -17,6 +21,11 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
     ecc_slot_states = {}
     ecc_slot_info = {}
     ecc_refresh_all_btn = None
+
+    def format_error_code(exc: Exception) -> str | None:
+        if isinstance(exc, TropicSquareError) and exc.error_code is not None:
+            return f"0x{exc.error_code:02x}"
+        return None
 
     def ecc_curve_name(curve: int) -> str:
         if curve == ECC_CURVE_P256:
@@ -180,8 +189,12 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
         except TropicSquareECCInvalidKeyError:
             ecc_slot_states[slot] = "empty"
             ecc_slot_info.pop(slot, None)
-        except Exception:
-            ecc_slot_states[slot] = "unknown"
+        except TropicSquareUnauthorizedError:
+            ecc_slot_states[slot] = "unauthorized"
+            ecc_slot_info.pop(slot, None)
+        except Exception as e:
+            code = format_error_code(e)
+            ecc_slot_states[slot] = ("error", code) if code else "error"
             ecc_slot_info.pop(slot, None)
         refresh_ecc_slot_card(slot)
 
@@ -309,6 +322,57 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
             card["btn_secondary"].setEnabled(False)
             card["btn_refresh"].setVisible(False)
             card["btn_refresh"].setEnabled(False)
+            card["primary_action"] = None
+            card["secondary_action"] = None
+        elif state == "unauthorized":
+            status.setText("● Unauthorized")
+            status.setStyleSheet(f"color: #7b3fb0; {base_style}")
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #7b3fb0; border-radius: 8px; padding: 8px; "
+                f"background-color: rgba(123, 63, 176, 0.14); }}"
+            )
+            card["btn_primary"].setText("Show")
+            card["btn_primary"].setVisible(False)
+            card["btn_primary"].setEnabled(False)
+            card["btn_secondary"].setText("Erase")
+            card["btn_secondary"].setVisible(False)
+            card["btn_secondary"].setEnabled(False)
+            card["btn_refresh"].setVisible(True)
+            card["btn_refresh"].setEnabled(True)
+            card["primary_action"] = None
+            card["secondary_action"] = None
+        elif state == "error":
+            status.setText("● Error code")
+            status.setStyleSheet(f"color: #b00020; {base_style}")
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #b00020; border-radius: 8px; padding: 8px; "
+                f"background-color: rgba(176, 0, 32, 0.11); }}"
+            )
+            card["btn_primary"].setText("Show")
+            card["btn_primary"].setVisible(False)
+            card["btn_primary"].setEnabled(False)
+            card["btn_secondary"].setText("Erase")
+            card["btn_secondary"].setVisible(False)
+            card["btn_secondary"].setEnabled(False)
+            card["btn_refresh"].setVisible(True)
+            card["btn_refresh"].setEnabled(True)
+            card["primary_action"] = None
+            card["secondary_action"] = None
+        elif isinstance(state, tuple) and state[0] == "error":
+            status.setText(f"● Error {state[1]}")
+            status.setStyleSheet(f"color: #b00020; {base_style}")
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #b00020; border-radius: 8px; padding: 8px; "
+                f"background-color: rgba(176, 0, 32, 0.11); }}"
+            )
+            card["btn_primary"].setText("Show")
+            card["btn_primary"].setVisible(False)
+            card["btn_primary"].setEnabled(False)
+            card["btn_secondary"].setText("Erase")
+            card["btn_secondary"].setVisible(False)
+            card["btn_secondary"].setEnabled(False)
+            card["btn_refresh"].setVisible(True)
+            card["btn_refresh"].setEnabled(True)
             card["primary_action"] = None
             card["secondary_action"] = None
         else:
@@ -458,8 +522,12 @@ def setup_ecc(window, bus, get_ts, parse_hex_bytes):
                 except TropicSquareECCInvalidKeyError:
                     ecc_slot_states[slot] = "empty"
                     ecc_slot_info.pop(slot, None)
-                except Exception:
-                    ecc_slot_states[slot] = "unknown"
+                except TropicSquareUnauthorizedError:
+                    ecc_slot_states[slot] = "unauthorized"
+                    ecc_slot_info.pop(slot, None)
+                except Exception as e:
+                    code = format_error_code(e)
+                    ecc_slot_states[slot] = ("error", code) if code else "error"
                     ecc_slot_info.pop(slot, None)
                 refresh_ecc_slot_card(slot)
                 progress.setValue(slot + 1)

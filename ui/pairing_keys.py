@@ -6,6 +6,8 @@ from tropicsquare.exceptions import (
     TropicSquarePairingKeyEmptyError,
     TropicSquarePairingKeyInvalidError,
     TropicSquareCommandError,
+    TropicSquareError,
+    TropicSquareUnauthorizedError,
 )
 
 
@@ -14,6 +16,11 @@ def setup_pairing_keys(window, bus, get_ts):
     pairing_slot_states = {}
     pairing_slot_pubkey_prefix = {}
     refresh_in_progress = False
+
+    def format_error_code(exc: Exception) -> str | None:
+        if isinstance(exc, TropicSquareError) and exc.error_code is not None:
+            return f"0x{exc.error_code:02x}"
+        return None
 
     def format_pubkey_prefix(key: bytes) -> str:
         return " ".join(f"{b:02x}" for b in key[:8])
@@ -82,6 +89,39 @@ def setup_pairing_keys(window, bus, get_ts):
                 "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
                 "border-radius: 6px; padding: 6px 8px;"
             )
+        elif state == "unauthorized":
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #7b3fb0; border-radius: 8px; padding: 8px; background-color: rgba(123, 63, 176, 0.14); }}"
+            )
+            status.setText("● Unauthorized")
+            status.setStyleSheet(
+                "color: #7b3fb0; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
+            btn_refresh_one.setVisible(True)
+            btn_refresh_one.setEnabled(True)
+        elif state == "error":
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #b00020; border-radius: 8px; padding: 8px; background-color: rgba(176, 0, 32, 0.11); }}"
+            )
+            status.setText("● Error code")
+            status.setStyleSheet(
+                "color: #b00020; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
+            btn_refresh_one.setVisible(True)
+            btn_refresh_one.setEnabled(True)
+        elif isinstance(state, tuple) and state[0] == "error":
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #b00020; border-radius: 8px; padding: 8px; background-color: rgba(176, 0, 32, 0.11); }}"
+            )
+            status.setText(f"● Error {state[1]}")
+            status.setStyleSheet(
+                "color: #b00020; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
+            btn_refresh_one.setVisible(True)
+            btn_refresh_one.setEnabled(True)
         else:
             frame.setStyleSheet(
                 f"{frame_selector} {{ border: 1px solid #7a7a7a; border-radius: 8px; padding: 8px; background-color: rgba(122, 122, 122, 0.11); }}"
@@ -129,6 +169,17 @@ def setup_pairing_keys(window, bus, get_ts):
             pairing_slot_pubkey_prefix.pop(slot, None)
             QtWidgets.QMessageBox.information(window, "Pairing Key Read", f"Slot {slot} is invalidated.")
             refresh_pairing_slot_card(slot)
+        except TropicSquareUnauthorizedError:
+            pairing_slot_states[slot] = "unauthorized"
+            pairing_slot_pubkey_prefix.pop(slot, None)
+            refresh_pairing_slot_card(slot)
+            QtWidgets.QMessageBox.warning(window, "Pairing Key Read", f"Slot {slot}: unauthorized")
+        except TropicSquareCommandError as e:
+            code = format_error_code(e)
+            pairing_slot_states[slot] = ("error", code) if code else "error"
+            pairing_slot_pubkey_prefix.pop(slot, None)
+            refresh_pairing_slot_card(slot)
+            QtWidgets.QMessageBox.critical(window, "Pairing Key Read Failed", f"Error {code}" if code else "Error code")
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "Pairing Key Read Failed", str(e))
 
@@ -224,8 +275,12 @@ def setup_pairing_keys(window, bus, get_ts):
                 except TropicSquarePairingKeyInvalidError:
                     pairing_slot_states[slot] = "invalidated"
                     pairing_slot_pubkey_prefix.pop(slot, None)
-                except Exception:
-                    pairing_slot_states[slot] = "unknown"
+                except TropicSquareUnauthorizedError:
+                    pairing_slot_states[slot] = "unauthorized"
+                    pairing_slot_pubkey_prefix.pop(slot, None)
+                except Exception as e:
+                    code = format_error_code(e)
+                    pairing_slot_states[slot] = ("error", code) if code else "error"
                     pairing_slot_pubkey_prefix.pop(slot, None)
                 refresh_pairing_slot_card(slot)
 
@@ -250,8 +305,12 @@ def setup_pairing_keys(window, bus, get_ts):
         except TropicSquarePairingKeyInvalidError:
             pairing_slot_states[slot] = "invalidated"
             pairing_slot_pubkey_prefix.pop(slot, None)
-        except Exception:
-            pairing_slot_states[slot] = "unknown"
+        except TropicSquareUnauthorizedError:
+            pairing_slot_states[slot] = "unauthorized"
+            pairing_slot_pubkey_prefix.pop(slot, None)
+        except Exception as e:
+            code = format_error_code(e)
+            pairing_slot_states[slot] = ("error", code) if code else "error"
             pairing_slot_pubkey_prefix.pop(slot, None)
         refresh_pairing_slot_card(slot)
         window.lblPairingSlotsRefresh.setText("Done")

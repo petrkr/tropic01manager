@@ -2,13 +2,22 @@ from __future__ import annotations
 
 from PyQt6 import QtWidgets, QtCore
 from tropicsquare.constants import MCOUNTER_MAX
-from tropicsquare.exceptions import TropicSquareCounterInvalidError
+from tropicsquare.exceptions import (
+    TropicSquareCounterInvalidError,
+    TropicSquareError,
+    TropicSquareUnauthorizedError,
+)
 
 
 def setup_mcounter(window, bus, get_ts):
     mcounter_cards = {}
     mcounter_states = {}
     mcounter_values = {}
+
+    def format_error_code(exc: Exception) -> str | None:
+        if isinstance(exc, TropicSquareError) and exc.error_code is not None:
+            return f"0x{exc.error_code:02x}"
+        return None
 
     def refresh_mcounter_card(index: int):
         card = mcounter_cards.get(index)
@@ -82,6 +91,42 @@ def setup_mcounter(window, bus, get_ts):
                 "color: #666666; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
                 "border-radius: 6px; padding: 6px 8px;"
             )
+        elif state == "unauthorized":
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #7b3fb0; border-radius: 8px; padding: 8px; "
+                f"background-color: rgba(123, 63, 176, 0.14); }}"
+            )
+            status.setText("● Unauthorized")
+            status.setStyleSheet(
+                "color: #7b3fb0; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
+            btn_refresh_one.setVisible(True)
+            btn_refresh_one.setEnabled(True)
+        elif state == "error":
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #b00020; border-radius: 8px; padding: 8px; "
+                f"background-color: rgba(176, 0, 32, 0.11); }}"
+            )
+            status.setText("● Error code")
+            status.setStyleSheet(
+                "color: #b00020; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
+            btn_refresh_one.setVisible(True)
+            btn_refresh_one.setEnabled(True)
+        elif isinstance(state, tuple) and state[0] == "error":
+            frame.setStyleSheet(
+                f"{frame_selector} {{ border: 1px solid #b00020; border-radius: 8px; padding: 8px; "
+                f"background-color: rgba(176, 0, 32, 0.11); }}"
+            )
+            status.setText(f"● Error {state[1]}")
+            status.setStyleSheet(
+                "color: #b00020; font-weight: bold; border: 1px solid rgba(210, 210, 210, 0.82); "
+                "border-radius: 6px; padding: 6px 8px;"
+            )
+            btn_refresh_one.setVisible(True)
+            btn_refresh_one.setEnabled(True)
         else:
             frame.setStyleSheet(
                 f"{frame_selector} {{ border: 1px solid #7a7a7a; border-radius: 8px; padding: 8px; "
@@ -118,8 +163,17 @@ def setup_mcounter(window, bus, get_ts):
             mcounter_values.pop(idx, None)
             refresh_mcounter_card(idx)
             QtWidgets.QMessageBox.information(window, "MCounter Read", f"Counter {idx} is invalid.")
+        except TropicSquareUnauthorizedError:
+            mcounter_states[idx] = "unauthorized"
+            mcounter_values.pop(idx, None)
+            refresh_mcounter_card(idx)
+            QtWidgets.QMessageBox.warning(window, "MCounter Read", f"Counter {idx}: unauthorized")
         except Exception as e:
-            QtWidgets.QMessageBox.critical(window, "MCounter Read Failed", str(e))
+            code = format_error_code(e)
+            mcounter_states[idx] = ("error", code) if code else "error"
+            mcounter_values.pop(idx, None)
+            refresh_mcounter_card(idx)
+            QtWidgets.QMessageBox.critical(window, "MCounter Read Failed", f"Error {code}" if code else str(e))
 
     def on_btnMCounterInitFromOverview_click(index):
         ts = get_ts()
@@ -176,8 +230,13 @@ def setup_mcounter(window, bus, get_ts):
             mcounter_states[idx] = "invalid"
             mcounter_values.pop(idx, None)
             refresh_mcounter_card(idx)
-        except Exception:
-            mcounter_states[idx] = "unknown"
+        except TropicSquareUnauthorizedError:
+            mcounter_states[idx] = "unauthorized"
+            mcounter_values.pop(idx, None)
+            refresh_mcounter_card(idx)
+        except Exception as e:
+            code = format_error_code(e)
+            mcounter_states[idx] = ("error", code) if code else "error"
             mcounter_values.pop(idx, None)
             refresh_mcounter_card(idx)
         window.lblMCounterRefreshStatus.setText("Done")
@@ -201,8 +260,13 @@ def setup_mcounter(window, bus, get_ts):
                     mcounter_states[idx] = "invalid"
                     mcounter_values.pop(idx, None)
                     refresh_mcounter_card(idx)
-                except Exception:
-                    mcounter_states[idx] = "unknown"
+                except TropicSquareUnauthorizedError:
+                    mcounter_states[idx] = "unauthorized"
+                    mcounter_values.pop(idx, None)
+                    refresh_mcounter_card(idx)
+                except Exception as e:
+                    code = format_error_code(e)
+                    mcounter_states[idx] = ("error", code) if code else "error"
                     mcounter_values.pop(idx, None)
                     refresh_mcounter_card(idx)
             window.pbMCounterRefresh.setValue(total)

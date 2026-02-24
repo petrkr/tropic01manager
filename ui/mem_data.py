@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import re
-
 from PyQt6 import QtWidgets, QtCore
 from tropicsquare.constants import MEM_DATA_MAX_SIZE
-from tropicsquare.exceptions import TropicSquareCommandError, TropicSquareUnauthorizedError
+from tropicsquare.exceptions import TropicSquareError, TropicSquareUnauthorizedError
 
 
 def setup_mem_data(window, bus, get_ts):
@@ -44,10 +42,10 @@ def setup_mem_data(window, bus, get_ts):
             return "● Unauthorized"
         if state == "no-session":
             return "● No session"
-        if isinstance(state, str) and state.startswith("error:"):
-            return f"● Error {state.split(':', 1)[1]}"
         if state == "error":
             return "● Error code"
+        if isinstance(state, tuple) and state[0] == "error":
+            return f"● Error {state[1]}"
         return "● Unknown"
 
     def card_style(slot: int, selected: bool) -> str:
@@ -67,14 +65,14 @@ def setup_mem_data(window, bus, get_ts):
             border_color = "#b00020"
             bg = "rgba(176, 0, 32, 0.11)"
             status_color = "#b00020"
+        elif isinstance(state, tuple) and state[0] == "error":
+            border_color = "#b00020"
+            bg = "rgba(176, 0, 32, 0.11)"
+            status_color = "#b00020"
         elif state == "unauthorized":
             border_color = "#7b3fb0"
             bg = "rgba(123, 63, 176, 0.14)"
             status_color = "#7b3fb0"
-        elif isinstance(state, str) and state.startswith("error:"):
-            border_color = "#b00020"
-            bg = "rgba(176, 0, 32, 0.11)"
-            status_color = "#b00020"
         elif state == "no-session":
             border_color = "#666666"
             bg = "rgba(102, 102, 102, 0.09)"
@@ -143,14 +141,9 @@ def setup_mem_data(window, bus, get_ts):
         slot_data[slot] = data
         slot_states[slot] = "empty" if len(data) == 0 else "data"
 
-    def extract_error_code(exc: Exception) -> str | None:
-        text = str(exc)
-        match = re.search(r"\((?:result|status):\s*(0x[0-9a-fA-F]+)\)", text)
-        if match:
-            return match.group(1).lower()
-        match = re.search(r"\b0x[0-9a-fA-F]+\b", text)
-        if match:
-            return match.group(0).lower()
+    def format_error_code(exc: Exception) -> str | None:
+        if isinstance(exc, TropicSquareError) and exc.error_code is not None:
+            return f"0x{exc.error_code:02x}"
         return None
 
     def run_refresh(slots, label: str):
@@ -172,14 +165,9 @@ def setup_mem_data(window, bus, get_ts):
                     slot_states[slot] = "unauthorized"
                     slot_data.pop(slot, None)
                     errors += 1
-                except TropicSquareCommandError as e:
-                    code = extract_error_code(e)
-                    slot_states[slot] = f"error:{code}" if code else "error"
-                    slot_data.pop(slot, None)
-                    errors += 1
                 except Exception as e:
-                    code = extract_error_code(e)
-                    slot_states[slot] = f"error:{code}" if code else "error"
+                    code = format_error_code(e)
+                    slot_states[slot] = ("error", code) if code else "error"
                     slot_data.pop(slot, None)
                     errors += 1
                 pb_refresh.setValue(i)
