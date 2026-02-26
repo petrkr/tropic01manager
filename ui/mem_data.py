@@ -170,6 +170,8 @@ def setup_mem_data(window, bus, get_ts):
                     slot_states[slot] = ("error", code) if code else "error"
                     slot_data.pop(slot, None)
                     errors += 1
+                refresh_cards()
+                update_detail()
                 pb_refresh.setValue(i)
                 QtWidgets.QApplication.processEvents()
         finally:
