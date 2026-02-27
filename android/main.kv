@@ -1,258 +1,178 @@
 <RootView>:
     orientation: "vertical"
-    spacing: "8dp"
-    padding: "12dp"
+    padding: "16dp"
+    spacing: "12dp"
 
-    # Status row - both connection and session
-    BoxLayout:
+    # Status row with cards
+    MDBoxLayout:
         size_hint_y: None
-        height: "40dp"
-        Label:
-            text: root.connection_status
-            halign: "left"
-            valign: "middle"
-            text_size: self.width, None
-        Label:
-            text: root.session_status
-            halign: "right"
-            valign: "middle"
-            text_size: self.width, None
+        height: "56dp"
+        spacing: "8dp"
+
+        MDCard:
+            size_hint_x: 0.5
+            padding: "8dp"
+            radius: [8]
+            elevation: 2
+
+            MDLabel:
+                text: root.connection_status
+                halign: "left"
+                valign: "middle"
+                theme_text_color: "Primary"
+                font_style: "Body1"
+
+        MDCard:
+            size_hint_x: 0.5
+            padding: "8dp"
+            radius: [8]
+            elevation: 2
+
+            MDLabel:
+                text: root.session_status
+                halign: "right"
+                valign: "middle"
+                theme_text_color: "Primary"
+                font_style: "Body1"
 
     # Action buttons row
-    BoxLayout:
+    MDBoxLayout:
         size_hint_y: None
         height: "48dp"
         spacing: "8dp"
 
-        Button:
+        MDRaisedButton:
             text: "Connection"
             on_press: root.open_connection_popup()
+            size_hint_x: 1
 
-        Button:
+        MDRaisedButton:
             id: btn_connect
             text: "Connect"
             on_press: root.toggle_connect()
+            size_hint_x: 1
+            md_bg_color: app.theme_cls.primary_color
 
-        Button:
+        MDRaisedButton:
             id: btn_session
             text: "Start Session"
             on_press: root.toggle_session()
+            size_hint_x: 1
+            disabled: not root.is_connected
 
     # TabbedPanel for other functions
-    TabbedPanel:
-        do_default_tab: False
-        size_hint_y: 1  # Take remaining space
+    MDTabs:
+        id: tabs
+        size_hint_y: 1
+        on_tab_switch: app.on_tab_switch(*args)
 
-        TabbedPanelItem:
-            text: "Chip ID"
-            Label:
-                text: root.chip_id
+        # Chip ID Tab
+        ChipTab:
+            title: "Chip ID"
+            tab: tabs
+
+        # Ping Tab
+        PingTab:
+            title: "Ping"
+            tab: tabs
+
+        # Info Tab
+        InfoTab:
+            title: "Info"
+            tab: tabs
+
+        # Random Tab
+        RandomTab:
+            title: "Random"
+            tab: tabs
+
+        # Config Tab
+        ConfigTab:
+            title: "Config"
+            tab: tabs
+
+
+# Tab Content Classes
+<ChipTab>:
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: "16dp"
+        spacing: "16dp"
+
+        MDCard:
+            size_hint_y: None
+            height: "100dp"
+            padding: "16dp"
+            radius: [12]
+            elevation: 4
+
+            MDLabel:
+                text: app.root.chip_id if app.root else "Unknown"
                 halign: "center"
                 valign: "middle"
+                font_style: "H5"
+                theme_text_color: "Primary"
 
-        TabbedPanelItem:
-            text: "Ping"
-            Label:
-                text: "Ping screen placeholder"
-
-        TabbedPanelItem:
-            text: "Info"
-            Label:
-                text: "Info screen placeholder"
-
-        TabbedPanelItem:
-            text: "Random"
-            Label:
-                text: "Random screen placeholder"
-
-        TabbedPanelItem:
-            text: "Config"
-            Label:
-                text: "Config screen placeholder"
+        MDLabel:
+            text: "Chip Identification"
+            halign: "center"
+            theme_text_color: "Secondary"
+            font_style: "Subtitle2"
 
 
-<ConnectionPopup>:
-    title: "Connection Settings"
-    size_hint: 0.9, 0.8
-    auto_dismiss: False
-
-    BoxLayout:
+<PingTab>:
+    MDBoxLayout:
         orientation: "vertical"
-        spacing: "0dp"
+        padding: "16dp"
 
-        ScrollView:
-            do_scroll_x: False
-            do_scroll_y: True
-            BoxLayout:
-                orientation: "vertical"
-                spacing: "8dp"
-                padding: "12dp"
-                size_hint_y: None
-                height: self.minimum_height
+        MDLabel:
+            text: "Ping functionality"
+            halign: "center"
+            theme_text_color: "Hint"
+            font_style: "Body1"
 
-                # CONNECTION SECTION
-                Label:
-                    text: "Connection"
-                    size_hint_y: None
-                    height: "24dp"
-                    font_size: "16sp"
-                    bold: True
-                    halign: "left"
-                    text_size: self.width, None
+        MDRaisedButton:
+            text: "Send Ping"
+            size_hint_x: None
+            width: "200dp"
+            pos_hint: {"center_x": 0.5}
+            on_press: app.send_ping()
 
-                # Transport
-                BoxLayout:
-                    orientation: "horizontal"
-                    size_hint_y: None
-                    height: "40dp"
-                    Label:
-                        text: "Transport"
-                        size_hint_x: 0.4
-                        halign: "left"
-                        valign: "middle"
-                        text_size: self.width, None
-                    Spinner:
-                        id: transport
-                        text: "TCP"
-                        values: ("TCP", "Network")
-                        on_text: root.on_transport_changed(self.text)
 
-                # Host
-                BoxLayout:
-                    orientation: "horizontal"
-                    size_hint_y: None
-                    height: "40dp"
-                    Label:
-                        text: "Host"
-                        size_hint_x: 0.4
-                        halign: "left"
-                        valign: "middle"
-                        text_size: self.width, None
-                    TextInput:
-                        id: host
-                        text: "127.0.0.1"
-                        multiline: False
-                        on_text: root.on_field_changed()
+<InfoTab>:
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: "16dp"
 
-                # Port
-                BoxLayout:
-                    orientation: "horizontal"
-                    size_hint_y: None
-                    height: "40dp"
-                    Label:
-                        text: "Port"
-                        size_hint_x: 0.4
-                        halign: "left"
-                        valign: "middle"
-                        text_size: self.width, None
-                    TextInput:
-                        id: port
-                        text: "28992"
-                        multiline: False
-                        input_filter: "int"
-                        on_text: root.on_field_changed()
+        MDLabel:
+            text: "Device Information"
+            halign: "center"
+            theme_text_color: "Hint"
+            font_style: "Body1"
 
-                # Line separator
-                BoxLayout:
-                    size_hint_y: None
-                    height: "1dp"
-                    canvas.before:
-                        Color:
-                            rgba: 0.5, 0.5, 0.5, 1
-                        Rectangle:
-                            pos: self.pos
-                            size: self.size
 
-                # SESSION SECTION
-                Label:
-                    text: "Secure Session"
-                    size_hint_y: None
-                    height: "24dp"
-                    font_size: "16sp"
-                    bold: True
-                    halign: "left"
-                    text_size: self.width, None
+<RandomTab>:
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: "16dp"
 
-                # Pairing profile
-                BoxLayout:
-                    orientation: "horizontal"
-                    size_hint_y: None
-                    height: "40dp"
-                    Label:
-                        text: "Pairing"
-                        size_hint_x: 0.4
-                        halign: "left"
-                        valign: "middle"
-                        text_size: self.width, None
-                    Spinner:
-                        id: pairing_profile
-                        text: "prod0"
-                        values: ("prod0", "eng", "custom")
-                        on_text: root.on_pairing_profile_changed(self.text)
+        MDLabel:
+            text: "Random Number Generator"
+            halign: "center"
+            theme_text_color: "Hint"
+            font_style: "Body1"
 
-                # Custom Index
-                BoxLayout:
-                    orientation: "horizontal"
-                    size_hint_y: None
-                    height: "40dp"
-                    Label:
-                        text: "Index"
-                        size_hint_x: 0.4
-                        halign: "left"
-                        valign: "middle"
-                        text_size: self.width, None
-                    TextInput:
-                        id: pairing_index
-                        text: "0"
-                        multiline: False
-                        input_filter: "int"
-                        disabled: pairing_profile.text != "custom"
-                        on_text: root.on_field_changed()
 
-                # Custom Priv
-                BoxLayout:
-                    orientation: "horizontal"
-                    size_hint_y: None
-                    height: "40dp"
-                    Label:
-                        text: "Priv (hex)"
-                        size_hint_x: 0.4
-                        halign: "left"
-                        valign: "middle"
-                        text_size: self.width, None
-                    TextInput:
-                        id: pairing_priv
-                        text: ""
-                        multiline: False
-                        disabled: pairing_profile.text != "custom"
-                        on_text: root.on_field_changed()
+<ConfigTab>:
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: "16dp"
 
-                # Custom Pub
-                BoxLayout:
-                    orientation: "horizontal"
-                    size_hint_y: None
-                    height: "40dp"
-                    Label:
-                        text: "Pub (hex)"
-                        size_hint_x: 0.4
-                        halign: "left"
-                        valign: "middle"
-                        text_size: self.width, None
-                    TextInput:
-                        id: pairing_pub
-                        text: ""
-                        multiline: False
-                        disabled: pairing_profile.text != "custom"
-                        on_text: root.on_field_changed()
+        MDLabel:
+            text: "Device Configuration"
+            halign: "center"
+            theme_text_color: "Hint"
+            font_style: "Body1"
 
-        # Save/Cancel buttons
-        BoxLayout:
-            size_hint_y: None
-            height: "48dp"
-            spacing: "8dp"
-            Button:
-                text: "Cancel"
-                on_release: root.dismiss()
-            Button:
-                text: "Save"
-                on_release: root.save_and_close()
+
+# Connection Dialog - created dynamically
