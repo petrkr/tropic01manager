@@ -1,0 +1,258 @@
+<RootView>:
+    orientation: "vertical"
+    spacing: "8dp"
+    padding: "12dp"
+
+    # Status row - both connection and session
+    BoxLayout:
+        size_hint_y: None
+        height: "40dp"
+        Label:
+            text: root.connection_status
+            halign: "left"
+            valign: "middle"
+            text_size: self.width, None
+        Label:
+            text: root.session_status
+            halign: "right"
+            valign: "middle"
+            text_size: self.width, None
+
+    # Action buttons row
+    BoxLayout:
+        size_hint_y: None
+        height: "48dp"
+        spacing: "8dp"
+
+        Button:
+            text: "Connection"
+            on_press: root.open_connection_popup()
+
+        Button:
+            id: btn_connect
+            text: "Connect"
+            on_press: root.toggle_connect()
+
+        Button:
+            id: btn_session
+            text: "Start Session"
+            on_press: root.toggle_session()
+
+    # TabbedPanel for other functions
+    TabbedPanel:
+        do_default_tab: False
+        size_hint_y: 1  # Take remaining space
+
+        TabbedPanelItem:
+            text: "Chip ID"
+            Label:
+                text: root.chip_id
+                halign: "center"
+                valign: "middle"
+
+        TabbedPanelItem:
+            text: "Ping"
+            Label:
+                text: "Ping screen placeholder"
+
+        TabbedPanelItem:
+            text: "Info"
+            Label:
+                text: "Info screen placeholder"
+
+        TabbedPanelItem:
+            text: "Random"
+            Label:
+                text: "Random screen placeholder"
+
+        TabbedPanelItem:
+            text: "Config"
+            Label:
+                text: "Config screen placeholder"
+
+
+<ConnectionPopup>:
+    title: "Connection Settings"
+    size_hint: 0.9, 0.8
+    auto_dismiss: False
+
+    BoxLayout:
+        orientation: "vertical"
+        spacing: "0dp"
+
+        ScrollView:
+            do_scroll_x: False
+            do_scroll_y: True
+            BoxLayout:
+                orientation: "vertical"
+                spacing: "8dp"
+                padding: "12dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                # CONNECTION SECTION
+                Label:
+                    text: "Connection"
+                    size_hint_y: None
+                    height: "24dp"
+                    font_size: "16sp"
+                    bold: True
+                    halign: "left"
+                    text_size: self.width, None
+
+                # Transport
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: "40dp"
+                    Label:
+                        text: "Transport"
+                        size_hint_x: 0.4
+                        halign: "left"
+                        valign: "middle"
+                        text_size: self.width, None
+                    Spinner:
+                        id: transport
+                        text: "TCP"
+                        values: ("TCP", "Network")
+                        on_text: root.on_transport_changed(self.text)
+
+                # Host
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: "40dp"
+                    Label:
+                        text: "Host"
+                        size_hint_x: 0.4
+                        halign: "left"
+                        valign: "middle"
+                        text_size: self.width, None
+                    TextInput:
+                        id: host
+                        text: "127.0.0.1"
+                        multiline: False
+                        on_text: root.on_field_changed()
+
+                # Port
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: "40dp"
+                    Label:
+                        text: "Port"
+                        size_hint_x: 0.4
+                        halign: "left"
+                        valign: "middle"
+                        text_size: self.width, None
+                    TextInput:
+                        id: port
+                        text: "28992"
+                        multiline: False
+                        input_filter: "int"
+                        on_text: root.on_field_changed()
+
+                # Line separator
+                BoxLayout:
+                    size_hint_y: None
+                    height: "1dp"
+                    canvas.before:
+                        Color:
+                            rgba: 0.5, 0.5, 0.5, 1
+                        Rectangle:
+                            pos: self.pos
+                            size: self.size
+
+                # SESSION SECTION
+                Label:
+                    text: "Secure Session"
+                    size_hint_y: None
+                    height: "24dp"
+                    font_size: "16sp"
+                    bold: True
+                    halign: "left"
+                    text_size: self.width, None
+
+                # Pairing profile
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: "40dp"
+                    Label:
+                        text: "Pairing"
+                        size_hint_x: 0.4
+                        halign: "left"
+                        valign: "middle"
+                        text_size: self.width, None
+                    Spinner:
+                        id: pairing_profile
+                        text: "prod0"
+                        values: ("prod0", "eng", "custom")
+                        on_text: root.on_pairing_profile_changed(self.text)
+
+                # Custom Index
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: "40dp"
+                    Label:
+                        text: "Index"
+                        size_hint_x: 0.4
+                        halign: "left"
+                        valign: "middle"
+                        text_size: self.width, None
+                    TextInput:
+                        id: pairing_index
+                        text: "0"
+                        multiline: False
+                        input_filter: "int"
+                        disabled: pairing_profile.text != "custom"
+                        on_text: root.on_field_changed()
+
+                # Custom Priv
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: "40dp"
+                    Label:
+                        text: "Priv (hex)"
+                        size_hint_x: 0.4
+                        halign: "left"
+                        valign: "middle"
+                        text_size: self.width, None
+                    TextInput:
+                        id: pairing_priv
+                        text: ""
+                        multiline: False
+                        disabled: pairing_profile.text != "custom"
+                        on_text: root.on_field_changed()
+
+                # Custom Pub
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: "40dp"
+                    Label:
+                        text: "Pub (hex)"
+                        size_hint_x: 0.4
+                        halign: "left"
+                        valign: "middle"
+                        text_size: self.width, None
+                    TextInput:
+                        id: pairing_pub
+                        text: ""
+                        multiline: False
+                        disabled: pairing_profile.text != "custom"
+                        on_text: root.on_field_changed()
+
+        # Save/Cancel buttons
+        BoxLayout:
+            size_hint_y: None
+            height: "48dp"
+            spacing: "8dp"
+            Button:
+                text: "Cancel"
+                on_release: root.dismiss()
+            Button:
+                text: "Save"
+                on_release: root.save_and_close()

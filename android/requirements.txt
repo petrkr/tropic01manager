@@ -1,0 +1,4 @@
+buildozer
+kivy
+cryptography==46.0.5
+Cython==0.29.36
