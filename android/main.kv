@@ -94,49 +94,61 @@
 
 # Tab Content Classes
 <ChipTab>:
-    MDBoxLayout:
-        orientation: "vertical"
-        padding: "16dp"
-        spacing: "16dp"
-
-        MDCard:
+    id: chip_tab
+    MDScrollView:
+        MDBoxLayout:
+            id: chip_container
+            orientation: "vertical"
+            padding: "12dp"
+            spacing: "2dp"
             size_hint_y: None
-            height: "100dp"
-            padding: "16dp"
-            radius: [12]
-            elevation: 4
-
-            MDLabel:
-                text: app.root.chip_id if app.root else "Unknown"
-                halign: "center"
-                valign: "middle"
-                font_style: "H5"
-                theme_text_color: "Primary"
-
-        MDLabel:
-            text: "Chip Identification"
-            halign: "center"
-            theme_text_color: "Secondary"
-            font_style: "Subtitle2"
+            height: self.minimum_height
 
 
 <PingTab>:
     MDBoxLayout:
         orientation: "vertical"
         padding: "16dp"
+        spacing: "12dp"
 
         MDLabel:
-            text: "Ping functionality"
-            halign: "center"
-            theme_text_color: "Hint"
-            font_style: "Body1"
+            text: "Input"
+            size_hint_y: None
+            height: "24dp"
+            theme_text_color: "Secondary"
+            font_style: "Body2"
+
+        MDTextField:
+            id: ping_input
+            mode: "rectangle"
+            hint_text: "Enter text"
+            size_hint_y: None
+            height: "48dp"
 
         MDRaisedButton:
+            id: btn_send_ping
             text: "Send Ping"
-            size_hint_x: None
-            width: "200dp"
-            pos_hint: {"center_x": 0.5}
+            size_hint_y: None
+            height: "48dp"
+            disabled: True
             on_press: app.send_ping()
+
+        MDLabel:
+            text: "Response:"
+            size_hint_y: None
+            height: "24dp"
+            theme_text_color: "Secondary"
+            font_style: "Body2"
+
+        MDScrollView:
+            MDLabel:
+                id: ping_result
+                text: ""
+                markup: True
+                theme_text_color: "Primary"
+                font_style: "Body2"
+                size_hint_y: None
+                height: self.texture_size[1]
 
 
 <InfoTab>:

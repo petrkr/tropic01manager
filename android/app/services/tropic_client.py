@@ -117,6 +117,13 @@ class TropicClient:
         except Exception as exc:
             raise TropicClientError(f"abort session failed: {exc}") from exc
 
+    @property
+    def ts(self) -> TropicSquareCPython:
+        """Access to TropicSquare instance"""
+        if self._ts is None:
+            raise TropicClientError("Not connected")
+        return self._ts
+
     def disconnect(self) -> None:
         if self._ts is not None and hasattr(self._ts, "_secure_session") and self._ts._secure_session:
             try:

@@ -7,9 +7,10 @@ from threading import Thread
 from functools import partial
 
 from kivy.clock import Clock
-from kivy.properties import StringProperty, ObjectProperty, BooleanProperty
+from kivy.properties import StringProperty, ObjectProperty, BooleanProperty, AliasProperty, NumericProperty
 
 from kivymd.app import MDApp
+from tropicsquare.chip_id import ChipId
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDRaisedButton, MDFlatButton
 from kivymd.uix.dialog import MDDialog
@@ -19,6 +20,7 @@ from kivymd.uix.spinner import MDSpinner
 from kivymd.uix.tab import MDTabsBase
 from kivymd.uix.menu import MDDropdownMenu
 from kivy.uix.scrollview import ScrollView
+from kivymd.uix.scrollview import MDScrollView
 
 # Allow local repository import during early POC phase.
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -46,11 +48,51 @@ class ConfigTab(MDBoxLayout, MDTabsBase):
     pass
 
 
+# Simple event bus for state changes
+class EventBus:
+    def __init__(self):
+        self._listeners = {}
+
+    def bind(self, event_name, callback):
+        if event_name not in self._listeners:
+            self._listeners[event_name] = []
+        self._listeners[event_name].append(callback)
+
+    def unbind(self, event_name, callback):
+        if event_name in self._listeners:
+            try:
+                self._listeners[event_name].remove(callback)
+            except ValueError:
+                pass
+
+    def trigger(self, event_name, **kwargs):
+        if event_name in self._listeners:
+            for callback in self._listeners[event_name]:
+                callback(**kwargs)
+
+    def clear(self):
+        self._listeners.clear()
+
+
 class RootView(MDBoxLayout):
     status = StringProperty("Idle")
     connection_status = StringProperty("Disconnected")
     session_status = StringProperty("No Session")
-    chip_id = StringProperty("Unknown")
+
+    # ChipId object storage (not directly accessible from KV)
+    _chipid_obj = ObjectProperty(None, allownone=True)
+
+    # Properties for KV access
+    chip_id_version = StringProperty("")
+    silicon_rev = StringProperty("")
+    package_type = StringProperty("")
+    fab_name = StringProperty("")
+    part_number = StringProperty("")
+    hsm_version = StringProperty("")
+    prog_version = StringProperty("")
+    serial_number = StringProperty("")
+    batch_id = StringProperty("")
+
     is_connected = BooleanProperty(False)
     is_session_active = BooleanProperty(False)
 
@@ -60,10 +102,57 @@ class RootView(MDBoxLayout):
         self.settings = SettingsStore()
         self.connection_dialog = None
         self.progress_dialog = None
+        self.event_bus = EventBus()
         Clock.schedule_once(self._load_settings, 0)
 
     def _set_status(self, text: str) -> None:
         self.status = text
+
+    def _set_chipid(self, chipid: ChipId) -> None:
+        """Set ChipId object and update all display properties"""
+        self._chipid_obj = chipid
+        if chipid:
+            self.chip_id_version = '.'.join(map(str, chipid.chip_id_version))
+            self.silicon_rev = chipid.silicon_rev
+            self.package_type = f"{chipid.package_type_name} (0x{chipid.package_type_id:04X})"
+            self.fab_name = f"{chipid.fab_name} (0x{chipid.fab_id:03X})"
+            self.part_number = f"0x{chipid.part_number_id:03X}"
+            self.hsm_version = '.'.join(map(str, chipid.hsm_version))
+            self.prog_version = '.'.join(map(str, chipid.prog_version))
+            self.serial_number = str(chipid.serial_number)
+            self.batch_id = chipid.batch_id.hex()
+            print(f"DEBUG _set_chipid: chip_id_version={self.chip_id_version}, package_type={self.package_type}")
+            # Refresh the ChipTab by forcing a property update cycle
+            Clock.schedule_once(self._refresh_chip_tab, 0.01)
+        else:
+            self.chip_id_version = ""
+            self.silicon_rev = ""
+            self.package_type = ""
+            self.fab_name = ""
+            self.part_number = ""
+            self.hsm_version = ""
+            self.prog_version = ""
+            self.serial_number = ""
+            self.batch_id = ""
+            Clock.schedule_once(self._refresh_chip_tab, 0.01)
+
+    def _refresh_chip_tab(self, dt):
+        """Force refresh of ChipID tab"""
+        # Toggle a dummy property to force KV refresh
+        pass
+
+    def _clear_chipid(self) -> None:
+        """Clear all chip ID properties"""
+        self._chipid_obj = None
+        self.chip_id_version = ""
+        self.silicon_rev = ""
+        self.package_type = ""
+        self.fab_name = ""
+        self.part_number = ""
+        self.hsm_version = ""
+        self.prog_version = ""
+        self.serial_number = ""
+        self.batch_id = ""
 
     def _set_connection_status(self, text: str) -> None:
         self.connection_status = text
@@ -448,11 +537,28 @@ class RootView(MDBoxLayout):
                 def _ok(_dt):
                     self._hide_progress()
                     self.is_connected = True
-                    # Convert chipid bytes to hex string
-                    chipid_hex = " ".join(f"{b:02x}" for b in chipid) if isinstance(chipid, bytes) else str(chipid)
-                    self.chip_id = chipid_hex
-                    self._set_status(f"Connected, chipid={chipid_hex}")
-                    self._set_connection_status(f"Connected ({transport} {host}:{port})")
+                    # Parse chipid as ChipId object
+                    try:
+                        from tropicsquare.chip_id import ChipId
+                        print(f"DEBUG: chipid type={type(chipid)}, len={len(chipid) if hasattr(chipid, '__len__') else 'N/A'}")
+                        chipid_obj = ChipId(chipid) if isinstance(chipid, bytes) else chipid
+                        print(f"DEBUG: chipid_obj.package_type_name={chipid_obj.package_type_name}")
+                        self._set_chipid(chipid_obj)
+                        # Trigger connected event with chip_id string for status bar
+                        chipid_hex = " ".join(f"{b:02x}" for b in chipid_obj.raw[:8])
+                        self._set_status(f"Connected")
+                        self._set_connection_status(f"Connected ({transport} {host}:{port})")
+                        self.event_bus.trigger("connected", chip_id=chipid_hex, chipid_obj=chipid_obj)
+                    except Exception as e:
+                        # Fallback to hex string if parsing fails
+                        import traceback
+                        print(f"DEBUG: ChipId parsing failed: {e}")
+                        traceback.print_exc()
+                        chipid_hex = " ".join(f"{b:02x}" for b in chipid) if isinstance(chipid, bytes) else str(chipid)
+                        self._clear_chipid()
+                        self._set_status(f"Connected (raw chipid)")
+                        self._set_connection_status(f"Connected ({transport} {host}:{port})")
+                        self.event_bus.trigger("connected", chip_id=chipid_hex)
                     self._set_session_status("No Session")
                     self._update_connect_button()
                     self._update_session_button()
@@ -494,6 +600,9 @@ class RootView(MDBoxLayout):
             self._set_session_status("No Session")
             self._update_connect_button()
             self._update_session_button()
+            self._clear_chipid()
+            # Trigger disconnected event
+            self.event_bus.trigger("disconnected")
         except TropicClientError as exc:
             self._set_status(f"Error: {exc}")
 
@@ -518,6 +627,8 @@ class RootView(MDBoxLayout):
                     self._set_status("Session active")
                     self._set_session_status(f"Session Active (Slot: {key_index}, Key: {key_prefix})")
                     self._update_session_button()
+                    # Trigger session_started event
+                    self.event_bus.trigger("session_started", key_index=key_index, pubkey_prefix=key_prefix)
 
                 Clock.schedule_once(_ok, 0)
             except (ValueError, TropicClientError) as e:
@@ -543,6 +654,8 @@ class RootView(MDBoxLayout):
                     self._set_status("Session aborted")
                     self._set_session_status("No Session")
                     self._update_session_button()
+                    # Trigger session_ended event
+                    self.event_bus.trigger("session_ended")
 
                 Clock.schedule_once(_ok, 0)
             except TropicClientError as e:
@@ -566,17 +679,232 @@ class TropicAndroidApp(MDApp):
         self.theme_cls.theme_style = "Dark"  # Start with dark mode
         self.theme_cls.primary_palette = "Blue"
         self.theme_cls.accent_palette = "Teal"
-        return RootView()
+        self.root = RootView()
+        # Setup event listeners after root is created
+        Clock.schedule_once(self._setup_event_listeners, 0)
+        return self.root
+
+    def _setup_event_listeners(self, dt):
+        """Setup event bus listeners for tabs"""
+        if not self.root or not self.root.event_bus:
+            return
+
+        # Register listeners for connection state changes
+        self.root.event_bus.bind("connected", self._on_connected)
+        self.root.event_bus.bind("disconnected", self._on_disconnected)
+        self.root.event_bus.bind("session_started", self._on_session_started)
+        self.root.event_bus.bind("session_ended", self._on_session_ended)
+        Clock.schedule_once(lambda dt: self._init_chip_tab(), 0.2)
+
+    def _on_connected(self, **kwargs):
+        """Handle connected event - update UI elements"""
+        chip_id_obj = kwargs.get("chipid_obj")
+        if chip_id_obj:
+            self._update_chip_tab(chip_id_obj)
+
+    def _find_chip_tab(self):
+        """Find ChipTab in widget tree"""
+        tabs = self.root.ids.tabs if self.root and hasattr(self.root, 'ids') else None
+        if not tabs:
+            return None
+
+        def find_chip_tab(widget):
+            if isinstance(widget, ChipTab):
+                return widget
+            if hasattr(widget, 'children'):
+                for child in widget.children:
+                    result = find_chip_tab(child)
+                    if result:
+                        return result
+            return None
+
+        return find_chip_tab(tabs)
+
+    def _init_chip_tab(self):
+        """Initialize chip tab structure on startup"""
+        chip_tab = self._find_chip_tab()
+        if chip_tab:
+            self._init_chip_tab_structure(chip_tab)
+
+    def _clear_chip_tab(self):
+        """Clear chip tab values (keep structure)"""
+        chip_tab = self._find_chip_tab()
+        if chip_tab:
+            container = chip_tab.ids.get('chip_container')
+            if container:
+                # Clear value labels (first child of each row, which is at index 0)
+                for row in container.children:
+                    if len(row.children) >= 2:
+                        row.children[0].text = ""  # Clear value label
+
+    def _update_chip_tab(self, chipid_obj):
+        """Update Chip ID tab with data"""
+        chip_tab = self._find_chip_tab()
+        if not chip_tab:
+            print("DEBUG ChipTab not found, retrying...")
+            Clock.schedule_once(lambda dt: self._update_chip_tab(chipid_obj), 0.1)
+            return
+
+        self._populate_chip_tab(chip_tab, chipid_obj)
+
+    def _init_chip_tab_structure(self, tab):
+        """Initialize empty chip tab structure with keys"""
+        container = tab.ids.get('chip_container')
+        if not container:
+            return
+
+        # Clear any existing content
+        container.clear_widgets()
+
+        # Key labels (static)
+        keys = [
+            "Chip ID Version",
+            "Silicon Revision",
+            "Package Type",
+            "Fabrication",
+            "Part Number ID",
+            "HSM Version",
+            "Program Version",
+            "Serial Number",
+            "Batch ID",
+        ]
+
+        for key in keys:
+            row = MDBoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height="32dp",
+                spacing="8dp"
+            )
+
+            key_label = MDLabel(
+                text=f"{key}:",
+                size_hint_x=0.5,
+                theme_text_color="Secondary",
+                font_style="Body2"
+            )
+
+            value_label = MDLabel(
+                text="",
+                size_hint_x=0.5,
+                theme_text_color="Primary",
+                halign="right"
+            )
+
+            row.add_widget(key_label)
+            row.add_widget(value_label)
+            container.add_widget(row)
+
+        # Update container height
+        container.height = container.minimum_height
+
+    def _populate_chip_tab(self, tab, chipid_obj):
+        """Update chip tab values"""
+        container = tab.ids.get('chip_container')
+        if not container:
+            return
+
+        # Data values
+        data = [
+            '.'.join(map(str, chipid_obj.chip_id_version)),
+            chipid_obj.silicon_rev,
+            f"{chipid_obj.package_type_name} (0x{chipid_obj.package_type_id:04X})",
+            f"{chipid_obj.fab_name} (0x{chipid_obj.fab_id:03X})",
+            f"0x{chipid_obj.part_number_id:03X}",
+            '.'.join(map(str, chipid_obj.hsm_version)),
+            '.'.join(map(str, chipid_obj.prog_version)),
+            str(chipid_obj.serial_number),
+            chipid_obj.batch_id.hex(),
+        ]
+
+        # Update value labels (second child of each row)
+        for i, row in enumerate(container.children):
+            if i < len(data) and len(row.children) >= 2:
+                row.children[0].text = data[i]
+
+    def _on_disconnected(self, **kwargs):
+        """Handle disconnected event - clear all L3/L4 data"""
+        if self.root:
+            self.root._clear_chipid()
+        self._clear_chip_tab()
+        self._update_ping_button_state()
+
+    def _update_ping_button_state(self):
+        """Update ping button enabled state"""
+        ping_tab = self._find_ping_tab()
+        if ping_tab:
+            btn = ping_tab.ids.get('btn_send_ping')
+            if btn:
+                btn.disabled = not self.root.is_session_active
+
+    def _on_session_started(self, **kwargs):
+        """Handle session started event"""
+        self._update_ping_button_state()
+
+    def _on_session_ended(self, **kwargs):
+        """Handle session ended event - clear L3 data"""
+        self._update_ping_button_state()
 
     def on_tab_switch(self, instance_tabs, instance_tab, instance_tab_label, tab_text):
         """Called when switching tabs"""
         pass
 
     def send_ping(self):
-        """Send ping command - placeholder"""
-        if self.root and self.root.is_connected:
-            # TODO: Implement actual ping
-            pass
+        """Send ping command"""
+        if not self.root or not self.root.is_session_active:
+            return
+
+        ping_tab = self._find_ping_tab()
+        if not ping_tab:
+            return
+
+        input_field = ping_tab.ids.get('ping_input')
+        result_label = ping_tab.ids.get('ping_result')
+        if not input_field or not result_label:
+            return
+
+        input_text = input_field.text.strip()
+        if not input_text:
+            result_label.text = "[color=ff6666]Error: Empty input[/color]"
+            return
+
+        ping_data = input_text.encode("utf-8")
+
+        def worker(data=ping_data):
+            try:
+                result = self.root.client.ts.ping(data)
+                result_str = result.decode("utf-8")
+
+                def update_ui(_dt):
+                    result_label.text = f"[b]Response:[/b]\n{result_str}"
+
+                Clock.schedule_once(update_ui, 0)
+            except Exception as e:
+                error_msg = str(e)
+                def update_error(_dt):
+                    result_label.text = f"[color=ff6666]Error: {error_msg}[/color]"
+
+                Clock.schedule_once(update_error, 0)
+
+        Thread(target=worker, daemon=True).start()
+
+    def _find_ping_tab(self):
+        """Find PingTab in widget tree"""
+        tabs = self.root.ids.tabs if self.root and hasattr(self.root, 'ids') else None
+        if not tabs:
+            return None
+
+        def find_ping_tab(widget):
+            if isinstance(widget, PingTab):
+                return widget
+            if hasattr(widget, 'children'):
+                for child in widget.children:
+                    result = find_ping_tab(child)
+                    if result:
+                        return result
+            return None
+
+        return find_ping_tab(tabs)
 
 
 if __name__ == "__main__":
