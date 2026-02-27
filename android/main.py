@@ -769,6 +769,9 @@ class TropicAndroidApp(MDApp):
             "Batch ID",
         ]
 
+        # Store value labels for later updates
+        self._chip_tab_value_labels = []
+
         for key in keys:
             row = MDBoxLayout(
                 orientation="horizontal",
@@ -794,6 +797,7 @@ class TropicAndroidApp(MDApp):
             row.add_widget(key_label)
             row.add_widget(value_label)
             container.add_widget(row)
+            self._chip_tab_value_labels.append(value_label)
 
         # Update container height
         container.height = container.minimum_height
@@ -804,7 +808,10 @@ class TropicAndroidApp(MDApp):
         if not container:
             return
 
-        # Data values
+        sn = chipid_obj.serial_number
+        sn_str = f"SN:0x{sn.sn:02X} Fab:0x{sn.fab_id:03X} PN:0x{sn.part_number_id:03X} Lot:{sn.lot_id.hex()} Wafer:0x{sn.wafer_id:02X} ({sn.x_coord},{sn.y_coord})"
+
+        # Data values (must match keys order in _init_chip_tab_structure)
         data = [
             '.'.join(map(str, chipid_obj.chip_id_version)),
             chipid_obj.silicon_rev,
@@ -813,14 +820,14 @@ class TropicAndroidApp(MDApp):
             f"0x{chipid_obj.part_number_id:03X}",
             '.'.join(map(str, chipid_obj.hsm_version)),
             '.'.join(map(str, chipid_obj.prog_version)),
-            str(chipid_obj.serial_number),
+            sn_str,
             chipid_obj.batch_id.hex(),
         ]
 
-        # Update value labels (second child of each row)
-        for i, row in enumerate(container.children):
-            if i < len(data) and len(row.children) >= 2:
-                row.children[0].text = data[i]
+        # Update value labels
+        for i, value in enumerate(data):
+            if i < len(self._chip_tab_value_labels):
+                self._chip_tab_value_labels[i].text = value
 
     def _on_disconnected(self, **kwargs):
         """Handle disconnected event - clear all L3/L4 data"""
