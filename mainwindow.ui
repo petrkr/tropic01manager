@@ -711,6 +711,77 @@
        <attribute name="title">
         <string>MAC and Destroy</string>
        </attribute>
+       <layout class="QVBoxLayout" name="verticalLayoutMacAndDestroy">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QTabWidget" name="tabWidgetMacAndDestroy">
+          <property name="currentIndex">
+           <number>0</number>
+          </property>
+          <widget class="QWidget" name="tabMacAndDestroyGeneric">
+           <attribute name="title">
+            <string>Generic</string>
+           </attribute>
+           <layout class="QGridLayout" name="layoutMacAndDestroyGeneric">
+            <property name="leftMargin">
+             <number>10</number>
+            </property>
+            <property name="topMargin">
+             <number>10</number>
+            </property>
+            <property name="rightMargin">
+             <number>10</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <property name="horizontalSpacing">
+             <number>0</number>
+            </property>
+            <property name="verticalSpacing">
+             <number>0</number>
+            </property>
+           </layout>
+          </widget>
+          <widget class="QWidget" name="tabMacAndDestroyPin">
+           <attribute name="title">
+            <string>PIN</string>
+           </attribute>
+           <layout class="QGridLayout" name="layoutMacAndDestroyPin">
+            <property name="leftMargin">
+             <number>10</number>
+            </property>
+            <property name="topMargin">
+             <number>10</number>
+            </property>
+            <property name="rightMargin">
+             <number>10</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <property name="horizontalSpacing">
+             <number>6</number>
+            </property>
+            <property name="verticalSpacing">
+             <number>6</number>
+            </property>
+           </layout>
+          </widget>
+         </widget>
+        </item>
+       </layout>
       </widget>
       <widget class="QWidget" name="tab_9">
        <attribute name="title">

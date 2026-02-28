@@ -9,6 +9,8 @@ from ui.info import setup_info
 from ui.chip_id import setup_chip_id
 from ui.ping import setup_ping
 from ui.random_data import setup_random_data
+from ui.mac_and_destroy import setup_mac_and_destroy
+from ui.mac_and_destroy_pin import setup_mac_and_destroy_pin
 from tropicsquare.constants.pairing_keys import (
     FACTORY_PAIRING_KEY_INDEX,
     FACTORY_PAIRING_PRIVATE_KEY_PROD0,
@@ -440,6 +442,8 @@ def main():
     setup_info(window, bus, lambda: ts)
     setup_ping(window, bus, lambda: ts)
     setup_random_data(window, bus, lambda: ts)
+    setup_mac_and_destroy(window, bus, lambda: ts)
+    setup_mac_and_destroy_pin(window, bus, lambda: ts)
 
     setup_ecc(window, bus, lambda: ts, parse_hex_bytes)
     setup_mcounter(window, bus, lambda: ts)
