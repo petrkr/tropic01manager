@@ -173,35 +173,19 @@ def _payload_to_state(payload):
     return state
 
 
-def _encode_state(state, compact=False):
-    if compact:
-        payload = _state_to_payload(state, include_n=False, include_i=False)
-    else:
-        payload = _state_to_payload(state)
-    return json.dumps(payload, separators=(",", ":")).encode("utf-8")
-
-
-def _decode_state(raw: bytes):
-    if not raw:
-        return None
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except Exception:
-        raise ValueError("Stored state is not valid JSON")
-    return _payload_to_state(payload)
-
-
 def _calc_state_max_n_mem():
     max_n = 0
     for n in range(1, 129):
-        probe = {
-            "n": n,
-            "i": n,
-            "t": b"\x00" * 32,
-            "c": [b"\x00" * 32 for _ in range(n)],
-        }
-        if len(_encode_state(probe, compact=True)) <= MEM_DATA_MAX_SIZE:
-            max_n = n
+        try:
+            probe = PinStateBlob(
+                n=n,
+                t=b"\x00" * 32,
+                ciphertexts=[b"\x00" * 32 for _ in range(n)],
+            )
+            if len(probe.to_bytes()) <= MEM_DATA_MAX_SIZE:
+                max_n = n
+        except ValueError:
+            continue
     return max_n
 
 
@@ -297,6 +281,7 @@ def setup_mac_and_destroy_pin(window, bus, get_ts):
     layout.addWidget(lbl_status, 10, 1, 1, 2)
     layout.addWidget(lbl_key, 11, 0)
     layout.addWidget(le_key, 11, 1, 1, 2)
+    sync_counter_slot_from_state = False
 
     def current_storage_slot():
         slot_text = le_storage_slot.text().strip()
@@ -329,14 +314,26 @@ def setup_mac_and_destroy_pin(window, bus, get_ts):
 
     def load_state_from_tropic(ts, slot: int):
         raw = ts.mem_data_read(slot)
-        return _decode_state(raw)
+        if not raw:
+            return None
+        blob = PinStateBlob.from_bytes(raw)
+        return {
+            "n": blob.n,
+            "i": blob.n,
+            "t": blob.t,
+            "c": blob.ciphertexts,
+            "mcounter_slot": blob.mcounter_slot,
+        }
 
     def save_state_to_tropic(ts, slot: int, state):
-        encoded = _encode_state(state, compact=True)
-        if len(encoded) > MEM_DATA_MAX_SIZE:
-            raise ValueError(
-                f"State too large for one MEM Data slot (max n={STATE_MAX_N_MEM} for Tropic storage)"
-            )
+        blob = PinStateBlob(
+            n=int(state["n"]),
+            t=state["t"],
+            ciphertexts=list(state["c"]),
+            base_slot=0,
+            mcounter_slot=current_counter_slot(),
+        )
+        encoded = blob.to_bytes()
         try:
             ts.mem_data_erase(slot)
         except Exception:
@@ -377,20 +374,29 @@ def setup_mac_and_destroy_pin(window, bus, get_ts):
         le_user_secret.setVisible(is_user)
 
     def update_storage_ui():
+        nonlocal sync_counter_slot_from_state
         is_tropic = cmb_storage.currentData() == "tropic"
         lbl_storage_slot.setVisible(is_tropic)
         le_storage_slot.setVisible(is_tropic)
         lbl_counter_slot.setVisible(is_tropic)
         le_counter_slot.setVisible(is_tropic)
+        if is_tropic:
+            sync_counter_slot_from_state = True
+        refresh_state_label()
+
+    def on_storage_slot_changed(_):
+        nonlocal sync_counter_slot_from_state
+        sync_counter_slot_from_state = True
         refresh_state_label()
 
     cmb_entropy.currentIndexChanged.connect(update_entropy_ui)
     cmb_storage.currentIndexChanged.connect(update_storage_ui)
-    le_storage_slot.textChanged.connect(lambda _: refresh_state_label())
+    le_storage_slot.textChanged.connect(on_storage_slot_changed)
     le_counter_slot.textChanged.connect(lambda _: refresh_state_label())
     update_entropy_ui()
 
     def refresh_state_label():
+        nonlocal sync_counter_slot_from_state
         try:
             state = load_state()
         except Exception as e:
@@ -401,6 +407,23 @@ def setup_mac_and_destroy_pin(window, bus, get_ts):
             lbl_remaining.setText("-")
             lbl_status.setText("No PIN state")
             return
+        if (
+            cmb_storage.currentData() == "tropic"
+            and sync_counter_slot_from_state
+            and "mcounter_slot" in state
+        ):
+            slot_text = str(state["mcounter_slot"])
+            if le_counter_slot.text() != slot_text:
+                le_counter_slot.blockSignals(True)
+                le_counter_slot.setText(slot_text)
+                le_counter_slot.blockSignals(False)
+            sync_counter_slot_from_state = False
+            try:
+                state = load_state()
+            except Exception as e:
+                lbl_remaining.setText("-")
+                lbl_status.setText(str(e))
+                return
         lbl_remaining.setText(f"{state['i']} / {state['n']}")
         lbl_status.setText("State loaded")
         le_attempts.setText(str(state["n"]))
