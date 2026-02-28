@@ -76,14 +76,14 @@
             title: "Ping"
             tab: tabs
 
-        # Info Tab
-        InfoTab:
-            title: "Info"
-            tab: tabs
-
         # Random Tab
         RandomTab:
             title: "Random"
+            tab: tabs
+
+        # Info Tab
+        InfoTab:
+            title: "Info"
             tab: tabs
 
         # Config Tab
@@ -167,12 +167,47 @@
     MDBoxLayout:
         orientation: "vertical"
         padding: "16dp"
+        spacing: "12dp"
 
         MDLabel:
-            text: "Random Number Generator"
-            halign: "center"
-            theme_text_color: "Hint"
-            font_style: "Body1"
+            text: "Byte Count"
+            size_hint_y: None
+            height: "24dp"
+            theme_text_color: "Secondary"
+            font_style: "Body2"
+
+        MDTextField:
+            id: random_input
+            mode: "rectangle"
+            hint_text: "Enter number (0-255)"
+            input_filter: "int"
+            size_hint_y: None
+            height: "48dp"
+
+        MDRaisedButton:
+            id: btn_get_random
+            text: "Get Random"
+            size_hint_y: None
+            height: "48dp"
+            disabled: True
+            on_press: app.get_random()
+
+        MDLabel:
+            text: "Result:"
+            size_hint_y: None
+            height: "24dp"
+            theme_text_color: "Secondary"
+            font_style: "Body2"
+
+        MDScrollView:
+            MDLabel:
+                id: random_result
+                text: ""
+                markup: True
+                theme_text_color: "Primary"
+                font_style: "Body2"
+                size_hint_y: None
+                height: self.texture_size[1]
 
 
 <ConfigTab>:

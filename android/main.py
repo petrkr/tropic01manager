@@ -35,14 +35,45 @@ from app.services.tropic_client import TropicClient, TropicClientError
 class ChipTab(MDBoxLayout, MDTabsBase):
     pass
 
-class PingTab(MDBoxLayout, MDTabsBase):
-    pass
+
+class SessionAwareTab(MDBoxLayout, MDTabsBase):
+    """Base class for tabs with buttons that depend on session state."""
+    session_buttons = []  # list of ids to enable/disable
+
+    def on_kv_post(self, base_widget):
+        super().on_kv_post(base_widget)
+        Clock.schedule_once(self._register_events, 0.5)
+
+    def _register_events(self, dt):
+        app = MDApp.get_running_app()
+        if app and app.root and app.root.event_bus:
+            bus = app.root.event_bus
+            bus.bind("session_started", self._on_session_changed)
+            bus.bind("session_ended", self._on_session_changed)
+            bus.bind("disconnected", self._on_session_changed)
+        else:
+            Clock.schedule_once(self._register_events, 0.5)
+
+    def _on_session_changed(self, **kwargs):
+        app = MDApp.get_running_app()
+        active = app.root.is_session_active if app and app.root else False
+        for btn_id in self.session_buttons:
+            btn = self.ids.get(btn_id)
+            if btn:
+                btn.disabled = not active
+
+
+class PingTab(SessionAwareTab):
+    session_buttons = ['btn_send_ping']
+
 
 class InfoTab(MDBoxLayout, MDTabsBase):
     pass
 
-class RandomTab(MDBoxLayout, MDTabsBase):
-    pass
+
+class RandomTab(SessionAwareTab):
+    session_buttons = ['btn_get_random']
+
 
 class ConfigTab(MDBoxLayout, MDTabsBase):
     pass
@@ -679,6 +710,9 @@ class RootView(MDBoxLayout):
 class TropicAndroidApp(MDApp):
     kv_file = 'main.kv'
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def build(self):
         self.theme_cls.theme_style = "Dark"  # Start with dark mode
         self.theme_cls.primary_palette = "Blue"
@@ -907,23 +941,14 @@ class TropicAndroidApp(MDApp):
         if self.root:
             self.root._clear_chipid()
         self._clear_chip_tab()
-        self._update_ping_button_state()
-
-    def _update_ping_button_state(self):
-        """Update ping button enabled state"""
-        ping_tab = self._find_ping_tab()
-        if ping_tab:
-            btn = ping_tab.ids.get('btn_send_ping')
-            if btn:
-                btn.disabled = not self.root.is_session_active
 
     def _on_session_started(self, **kwargs):
         """Handle session started event"""
-        self._update_ping_button_state()
+        pass
 
     def _on_session_ended(self, **kwargs):
-        """Handle session ended event - clear L3 data"""
-        self._update_ping_button_state()
+        """Handle session ended event"""
+        pass
 
     def on_tab_switch(self, instance_tabs, instance_tab, instance_tab_label, tab_text):
         """Called when switching tabs"""
@@ -969,11 +994,18 @@ class TropicAndroidApp(MDApp):
         Thread(target=worker, daemon=True).start()
 
     def _find_ping_tab(self):
-        """Find PingTab in widget tree"""
+        """Find PingTab in MDTabs"""
         tabs = self.root.ids.tabs if self.root and hasattr(self.root, 'ids') else None
         if not tabs:
             return None
 
+        # Search in tab_list (all tabs, even hidden ones)
+        if hasattr(tabs, 'tab_list'):
+            for tab in tabs.tab_list:
+                if isinstance(tab, PingTab):
+                    return tab
+
+        # Fallback to recursive search
         def find_ping_tab(widget):
             if isinstance(widget, PingTab):
                 return widget
@@ -985,6 +1017,70 @@ class TropicAndroidApp(MDApp):
             return None
 
         return find_ping_tab(tabs)
+
+    def _find_random_tab(self):
+        """Find RandomTab in widget tree"""
+        tabs = self.root.ids.tabs if self.root and hasattr(self.root, 'ids') else None
+        if not tabs:
+            return None
+
+        def find_random_tab(widget):
+            if isinstance(widget, RandomTab):
+                return widget
+            if hasattr(widget, 'children'):
+                for child in widget.children:
+                    result = find_random_tab(child)
+                    if result:
+                        return result
+            return None
+
+        return find_random_tab(tabs)
+
+    def get_random(self):
+        """Get random bytes from chip"""
+        if not self.root or not self.root.is_session_active:
+            return
+
+        random_tab = self._find_random_tab()
+        if not random_tab:
+            return
+
+        input_field = random_tab.ids.get('random_input')
+        result_label = random_tab.ids.get('random_result')
+        if not input_field or not result_label:
+            return
+
+        input_text = input_field.text.strip()
+        if not input_text:
+            result_label.text = "[color=ff6666]Error: Empty input[/color]"
+            return
+
+        try:
+            byte_count = int(input_text)
+            if byte_count < 0 or byte_count > 255:
+                result_label.text = "[color=ff6666]Error: Must be 0-255[/color]"
+                return
+        except ValueError:
+            result_label.text = "[color=ff6666]Error: Invalid number[/color]"
+            return
+
+        def worker(count=byte_count):
+            try:
+                result = self.root.client.ts.get_random(count)
+                result_hex = result.hex()
+
+                def update_ui(_dt):
+                    result_label.text = f"[b]Random ({count} bytes):[/b]\n{result_hex}"
+
+                Clock.schedule_once(update_ui, 0)
+            except Exception as e:
+                error_msg = str(e)
+                def update_error(_dt):
+                    result_label.text = f"[color=ff6666]Error: {error_msg}[/color]"
+
+                Clock.schedule_once(update_error, 0)
+
+        Thread(target=worker, daemon=True).start()
 
 
 if __name__ == "__main__":
