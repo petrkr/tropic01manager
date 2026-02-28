@@ -183,6 +183,7 @@ class RootView(MDBoxLayout):
                 self.spacing = "8dp"
                 self.padding = "12dp"
                 self.size_hint_y = None
+                self.adaptive_height = True
 
         scroll_content = ScrollContent()
 
@@ -363,17 +364,20 @@ class RootView(MDBoxLayout):
 
         profile_btn.on_release = lambda: profile_menu.open()
 
-        # ScrollView wrapper
-        scroll_content_height = scroll_content.height
-        scroll_height = min(scroll_content_height, 350)  # Max 350dp for scroll area
-
-        scroll = ScrollView(size_hint=(1, None), height=f"{scroll_height}dp", do_scroll_x=False)
-        scroll.clip_children = False  # Allow dropdown to extend outside
+        # ScrollView wrapper - no fixed height, let it adapt
+        scroll = ScrollView(
+            size_hint=(1, 1),
+            do_scroll_x=False,
+            do_scroll_y=True
+        )
         scroll.add_widget(scroll_content)
 
-        # Main dialog container
-        total_dialog_height = scroll_height + 48 + 16  # scroll + buttons + padding
-        dialog_container = MDBoxLayout(orientation="vertical", size_hint_y=None, height=f"{total_dialog_height}dp")
+        # Main dialog container - let MDDialog handle sizing
+        dialog_container = MDBoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height="500dp"
+        )
         dialog_container.add_widget(scroll)
 
         # Button row
