@@ -756,8 +756,8 @@ class TropicAndroidApp(MDApp):
         # Clear any existing content
         container.clear_widgets()
 
-        # Key labels (static)
-        keys = [
+        # ChipID Section
+        chipid_keys = [
             "Chip ID Version",
             "Silicon Revision",
             "Package Type",
@@ -765,14 +765,13 @@ class TropicAndroidApp(MDApp):
             "Part Number ID",
             "HSM Version",
             "Program Version",
-            "Serial Number",
             "Batch ID",
         ]
 
         # Store value labels for later updates
         self._chip_tab_value_labels = []
 
-        for key in keys:
+        for key in chipid_keys:
             row = MDBoxLayout(
                 orientation="horizontal",
                 size_hint_y=None,
@@ -799,6 +798,62 @@ class TropicAndroidApp(MDApp):
             container.add_widget(row)
             self._chip_tab_value_labels.append(value_label)
 
+        # Divider
+        divider = MDBoxLayout(size_hint_y=None, height="12dp")
+        container.add_widget(divider)
+
+        # Serial Number Section header
+        sn_header = MDLabel(
+            text="Serial Number",
+            size_hint_y=None,
+            height="28dp",
+            theme_text_color="Secondary",
+            font_style="Subtitle2",
+            bold=True
+        )
+        container.add_widget(sn_header)
+
+        # Serial Number keys
+        sn_keys = [
+            "SN",
+            "Fab ID",
+            "Part Number ID",
+            "Fab Date",
+            "Lot ID",
+            "Wafer ID",
+            "X Coord",
+            "Y Coord",
+        ]
+
+        self._sn_value_labels = []
+
+        for key in sn_keys:
+            row = MDBoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height="32dp",
+                spacing="8dp"
+            )
+
+            key_label = MDLabel(
+                text=f"{key}:",
+                size_hint_x=0.5,
+                theme_text_color="Secondary",
+                font_style="Body2"
+            )
+
+            value_label = MDLabel(
+                text="",
+                size_hint_x=0.5,
+                theme_text_color="Primary",
+                halign="right"
+            )
+
+            row.add_widget(key_label)
+            row.add_widget(value_label)
+            container.add_widget(row)
+            self._sn_value_labels.append(value_label)
+
         # Update container height
         container.height = container.minimum_height
 
@@ -808,11 +863,8 @@ class TropicAndroidApp(MDApp):
         if not container:
             return
 
-        sn = chipid_obj.serial_number
-        sn_str = f"SN:0x{sn.sn:02X} Fab:0x{sn.fab_id:03X} PN:0x{sn.part_number_id:03X} Lot:{sn.lot_id.hex()} Wafer:0x{sn.wafer_id:02X} ({sn.x_coord},{sn.y_coord})"
-
-        # Data values (must match keys order in _init_chip_tab_structure)
-        data = [
+        # ChipID section data
+        chipid_data = [
             '.'.join(map(str, chipid_obj.chip_id_version)),
             chipid_obj.silicon_rev,
             f"{chipid_obj.package_type_name} (0x{chipid_obj.package_type_id:04X})",
@@ -820,14 +872,31 @@ class TropicAndroidApp(MDApp):
             f"0x{chipid_obj.part_number_id:03X}",
             '.'.join(map(str, chipid_obj.hsm_version)),
             '.'.join(map(str, chipid_obj.prog_version)),
-            sn_str,
             chipid_obj.batch_id.hex(),
         ]
 
-        # Update value labels
-        for i, value in enumerate(data):
+        # Update ChipID value labels
+        for i, value in enumerate(chipid_data):
             if i < len(self._chip_tab_value_labels):
                 self._chip_tab_value_labels[i].text = value
+
+        # Serial Number section data
+        sn = chipid_obj.serial_number
+        sn_data = [
+            f"0x{sn.sn:02X}",
+            f"0x{sn.fab_id:03X}",
+            f"0x{sn.part_number_id:03X}",
+            str(sn.fab_date),
+            sn.lot_id.hex(),
+            f"0x{sn.wafer_id:02X}",
+            str(sn.x_coord),
+            str(sn.y_coord),
+        ]
+
+        # Update Serial Number value labels
+        for i, value in enumerate(sn_data):
+            if i < len(self._sn_value_labels):
+                self._sn_value_labels[i].text = value
 
     def _on_disconnected(self, **kwargs):
         """Handle disconnected event - clear all L3/L4 data"""
