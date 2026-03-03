@@ -12,7 +12,7 @@ def setup_random_data(window, bus, get_ts):
             number = int(number_text)
             if number > 255:
                 raise ValueError("Number must be less than 256")
-            window.pteRandomBytes.setPlainText(ts.get_random(number).hex())
+            window.pteRandomBytes.setPlainText(ts.random(number).hex())
         except ValueError as e:
             QtWidgets.QMessageBox.warning(window, "Invalid Input", str(e))
         except Exception as e:

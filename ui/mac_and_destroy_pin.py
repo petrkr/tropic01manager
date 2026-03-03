@@ -461,7 +461,7 @@ def setup_mac_and_destroy_pin(window, bus, get_ts):
             pin_input = pin + additional
 
             if entropy_mode == "ts":
-                s = ts.get_random(32)
+                s = ts.random(32)
             elif entropy_mode == "host":
                 s = secrets.token_bytes(32)
             elif entropy_mode == "user":
@@ -469,7 +469,7 @@ def setup_mac_and_destroy_pin(window, bus, get_ts):
                 if len(s) != 32:
                     raise ValueError("User secret must be exactly 32 bytes (64 hex chars)")
             else:
-                ts_random = ts.get_random(32)
+                ts_random = ts.random(32)
                 host_random = secrets.token_bytes(32)
                 s = _kdf(ENTROPY_MIX_KEY, ts_random + host_random)
             if len(s) != 32:
