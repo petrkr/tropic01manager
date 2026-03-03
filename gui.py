@@ -264,7 +264,7 @@ def main():
 
             def validate_device():
                 try:
-                    validation_result["chip_id"] = ts.chipid
+                    validation_result["chip_id"] = ts.chip_id
                     validation_result["success"] = True
                 except Exception as e:
                     validation_result["error"] = str(e)
