@@ -34,6 +34,7 @@ DEFAULT_PAIRING_PUB = FACTORY_PAIRING_PUBLIC_KEY_PROD0
 
 
 import sys
+from pathlib import Path
 from PyQt6.QtCore import QSettings
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
 
@@ -421,7 +422,12 @@ def main():
         return ts is not None and hasattr(ts, "_secure_session") and ts._secure_session is not None
 
     app = QtWidgets.QApplication(sys.argv)
+    icon_path = Path(__file__).resolve().parent / "assets" / "icons" / "tropicsquare.svg"
+    if icon_path.exists():
+        app.setWindowIcon(QtGui.QIcon(str(icon_path)))
     window = uic.loadUi("mainwindow.ui")
+    if icon_path.exists():
+        window.setWindowIcon(QtGui.QIcon(str(icon_path)))
 
     # Connect connection management signals
     window.cmbDriverType.currentTextChanged.connect(on_driver_type_changed)
