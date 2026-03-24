@@ -276,6 +276,14 @@ def setup_config_tab(window, bus, get_ts):
             if hasattr(config, "_value"):
                 label.setText(f"0x{config._value:08X}")
 
+    def get_config_raw_value(config):
+        try:
+            return int.from_bytes(config.to_bytes(), "big")
+        except Exception:
+            if hasattr(config, "_value"):
+                return int(config._value) & 0xFFFFFFFF
+            raise ValueError("Unable to extract raw config value")
+
     def clone_config(config):
         if hasattr(config, "_value"):
             try:
@@ -629,8 +637,29 @@ def setup_config_tab(window, bus, get_ts):
         try:
             address = window.cmbIConfigReg.currentData()
             new_config = build_uap_config_from_ui(config, fields)
-            ts.i_config_write(address, new_config)
-            QtWidgets.QMessageBox.information(window, "I-Config Write", "Config written successfully")
+            current_value = get_config_raw_value(config)
+            new_value = get_config_raw_value(new_config)
+            invalid_mask = new_value & (~current_value & 0xFFFFFFFF)
+            if invalid_mask:
+                invalid_bits = [str(bit) for bit in range(32) if invalid_mask & (1 << bit)]
+                QtWidgets.QMessageBox.warning(
+                    window,
+                    "I-Config Write",
+                    "I-CONFIG cannot set bits from 0 to 1.\n"
+                    f"Requested invalid bits: {', '.join(invalid_bits)}",
+                )
+                return
+            bits_to_clear = [bit for bit in range(32) if (current_value & (1 << bit)) and not (new_value & (1 << bit))]
+            if not bits_to_clear:
+                QtWidgets.QMessageBox.information(window, "I-Config Write", "No writable bit changes")
+                return
+            for bit_index in bits_to_clear:
+                ts.i_config_write(address, bit_index)
+            QtWidgets.QMessageBox.information(
+                window,
+                "I-Config Write",
+                f"Config written successfully ({len(bits_to_clear)} bit(s) cleared)",
+            )
             on_btnIConfigRead_click()
         except Exception as e:
             QtWidgets.QMessageBox.critical(window, "I-Config Write Failed", str(e))
