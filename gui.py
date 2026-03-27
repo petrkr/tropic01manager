@@ -27,7 +27,6 @@ from tropicsquare.transports.ftdi_mpsse import FtdiMpsseTransport
 
 import threading
 from importlib import import_module
-from serial.tools import list_ports
 
 
 # Default factory pairing keys (PH0 / PROD0)
@@ -51,6 +50,14 @@ def main():
     current_pairing_index = None
     chip_id_refresh = None
     bus = EventBus()
+
+    try:
+        pyserial_list_ports = import_module("serial.tools.list_ports")
+        list_ports = pyserial_list_ports
+        pyserial_error = None
+    except Exception as exc:
+        list_ports = None
+        pyserial_error = exc
 
     try:
         pyftdi_ftdi = import_module("pyftdi.ftdi")
@@ -143,6 +150,9 @@ def main():
     def has_pyftdi_support():
         return Ftdi is not None and SpiController is not None and UsbTools is not None
 
+    def has_pyserial_support():
+        return list_ports is not None
+
     def driver_uses_param1_combo(driver_type: str) -> bool:
         return driver_type in ("UART", "FTDI")
 
@@ -168,6 +178,13 @@ def main():
         window.cmbParam1.blockSignals(True)
         try:
             window.cmbParam1.clear()
+            if not has_pyserial_support():
+                window.cmbParam1.setEnabled(False)
+                window.btnRefreshParam1.setEnabled(False)
+                window.cmbParam1.addItem("Install pyserial to enable UART transport", None)
+                window.cmbParam1.setToolTip(f"pyserial unavailable: {pyserial_error}")
+                return
+
             ports = [
                 port for port in list_ports.comports()
                 if port.device.startswith("/dev/ttyUSB") or port.device.startswith("/dev/ttyACM")
@@ -655,7 +672,13 @@ def main():
     on_pairing_profile_changed()
 
     window.cmbDriverType.clear()
-    window.cmbDriverType.addItem("UART", "UART")
+    if has_pyserial_support():
+        window.cmbDriverType.addItem("UART", "UART")
+    else:
+        window.cmbDriverType.addItem("UART (requires pyserial)", None)
+        model_item = window.cmbDriverType.model().item(window.cmbDriverType.count() - 1)
+        if model_item is not None:
+            model_item.setEnabled(False)
     window.cmbDriverType.addItem("Network", "Network")
     window.cmbDriverType.addItem("TCP", "TCP")
     if has_pyftdi_support():
@@ -665,13 +688,24 @@ def main():
         model_item = window.cmbDriverType.model().item(window.cmbDriverType.count() - 1)
         if model_item is not None:
             model_item.setEnabled(False)
-        window.cmbDriverType.setToolTip(f"pyftdi unavailable: {pyftdi_error}")
+    driver_tooltips = []
+    if not has_pyserial_support():
+        driver_tooltips.append(f"pyserial unavailable: {pyserial_error}")
+    if not has_pyftdi_support():
+        driver_tooltips.append(f"pyftdi unavailable: {pyftdi_error}")
+    if driver_tooltips:
+        window.cmbDriverType.setToolTip("\n".join(driver_tooltips))
 
     saved_driver = settings.value("connection/driver_type", "UART")
     if saved_driver:
         index = window.cmbDriverType.findData(str(saved_driver))
         if index >= 0:
             window.cmbDriverType.setCurrentIndex(index)
+    if window.cmbDriverType.currentData() is None:
+        for index in range(window.cmbDriverType.count()):
+            if window.cmbDriverType.itemData(index) is not None:
+                window.cmbDriverType.setCurrentIndex(index)
+                break
     settings_initialized = True
     on_driver_type_changed()
     set_connection_settings_visible(False)
