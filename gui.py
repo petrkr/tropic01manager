@@ -23,8 +23,10 @@ from tropicsquare.exceptions import *
 from tropicsquare.transports.uart import UartTransport
 from tropicsquare.transports.network import NetworkSpiTransport
 from tropicsquare.transports.tcp import TcpTransport
+from tropicsquare.transports.ftdi_mpsse import FtdiMpsseTransport
 
 import threading
+from importlib import import_module
 
 
 # Default factory pairing keys (PH0 / PROD0)
@@ -48,6 +50,20 @@ def main():
     current_pairing_index = None
     chip_id_refresh = None
     bus = EventBus()
+
+    try:
+        pyftdi_ftdi = import_module("pyftdi.ftdi")
+        pyftdi_spi = import_module("pyftdi.spi")
+        pyftdi_usbtools = import_module("pyftdi.usbtools")
+        Ftdi = pyftdi_ftdi.Ftdi
+        SpiController = pyftdi_spi.SpiController
+        UsbTools = pyftdi_usbtools.UsbTools
+        pyftdi_error = None
+    except Exception as exc:
+        Ftdi = None
+        SpiController = None
+        UsbTools = None
+        pyftdi_error = exc
 
     def close_transport():
         nonlocal transport
@@ -102,7 +118,7 @@ def main():
 
         if connected:
             driver_type = window.cmbDriverType.currentText()
-            param1 = window.leParam1.text()
+            param1 = get_param1_value()
             param2 = window.leParam2.text()
             if driver_type == "UART":
                 target = param1
@@ -113,6 +129,9 @@ def main():
             elif driver_type == "TCP":
                 target = f"{param1}:{param2}"
                 label = "TCP"
+            elif driver_type == "FTDI":
+                target = param1
+                label = "FTDI"
             else:
                 target = ""
                 label = driver_type
@@ -120,9 +139,79 @@ def main():
         else:
             window.lblConnectionTarget.setText("")
 
+    def has_pyftdi_support():
+        return Ftdi is not None and SpiController is not None and UsbTools is not None
+
+    def driver_uses_param1_combo(driver_type: str) -> bool:
+        return driver_type == "FTDI"
+
+    def get_param1_value() -> str:
+        driver_type = window.cmbDriverType.currentData() or window.cmbDriverType.currentText()
+        if driver_uses_param1_combo(driver_type):
+            index = window.cmbParam1.currentIndex()
+            item_data = window.cmbParam1.itemData(index) if index >= 0 else None
+            return str(item_data) if item_data else ""
+        return window.leParam1.text().strip()
+
+    def set_param1_value(value: str):
+        text = str(value)
+        if driver_uses_param1_combo(window.cmbDriverType.currentData() or window.cmbDriverType.currentText()):
+            index = window.cmbParam1.findData(text)
+            if index >= 0:
+                window.cmbParam1.setCurrentIndex(index)
+        else:
+            window.leParam1.setText(text)
+
+    def refresh_ftdi_devices():
+        current_value = get_param1_value()
+        window.cmbParam1.blockSignals(True)
+        try:
+            window.cmbParam1.clear()
+            if not has_pyftdi_support():
+                window.cmbParam1.setEnabled(False)
+                window.btnRefreshParam1.setEnabled(False)
+                window.cmbParam1.addItem("Install pyftdi to enable FTDI transport", None)
+                window.cmbParam1.setToolTip(f"pyftdi unavailable: {pyftdi_error}")
+                return
+
+            UsbTools.flush_cache()
+            devices = Ftdi.list_devices()
+            urls = UsbTools.build_dev_strings("ftdi", Ftdi.VENDOR_IDS, Ftdi.PRODUCT_IDS, devices)
+            for url, description in urls:
+                label = f"{url} {description}".strip() if description else url
+                window.cmbParam1.addItem(label, url)
+                if description:
+                    index = window.cmbParam1.count() - 1
+                    window.cmbParam1.setItemData(index, description, QtCore.Qt.ItemDataRole.ToolTipRole)
+
+            window.cmbParam1.setEnabled(True)
+            window.btnRefreshParam1.setEnabled(True)
+            window.cmbParam1.setToolTip("")
+            if window.cmbParam1.count() == 0:
+                window.cmbParam1.addItem("No FTDI device found", None)
+
+            index = window.cmbParam1.findData(current_value)
+            if index >= 0:
+                window.cmbParam1.setCurrentIndex(index)
+            elif not current_value and urls:
+                window.cmbParam1.setCurrentIndex(0)
+        except Exception as exc:
+            window.cmbParam1.setEnabled(True)
+            window.btnRefreshParam1.setEnabled(True)
+            window.cmbParam1.clear()
+            error_text = str(exc).lower()
+            if "device may have been disconnected" in error_text or "no usb device" in error_text:
+                window.cmbParam1.setToolTip(str(exc))
+                window.cmbParam1.addItem("No FTDI device found", None)
+            else:
+                window.cmbParam1.setToolTip(f"FTDI scan failed: {exc}")
+                window.cmbParam1.addItem("FTDI scan failed", None)
+        finally:
+            window.cmbParam1.blockSignals(False)
+
     def on_driver_type_changed():
         """Update parameter labels and defaults when driver type changes"""
-        driver_type = window.cmbDriverType.currentText()
+        driver_type = window.cmbDriverType.currentData() or window.cmbDriverType.currentText()
 
         if driver_type == "UART":
             window.lblParam1.setText("Port:")
@@ -139,22 +228,32 @@ def main():
             window.lblParam2.setText("Port:")
             default_param1 = "127.0.0.1"
             default_param2 = "28992"
+        elif driver_type == "FTDI":
+            window.lblParam1.setText("Device:")
+            window.lblParam2.setText("Frequency (Hz):")
+            default_param1 = ""
+            default_param2 = "1000000"
         else:
             default_param1 = ""
             default_param2 = ""
 
         param1 = settings.value(f"connection/{driver_type}/param1", default_param1)
         param2 = settings.value(f"connection/{driver_type}/param2", default_param2)
-        window.leParam1.setText(str(param1))
+        window.param1Stack.setCurrentWidget(
+            window.wParam1Selector if driver_uses_param1_combo(driver_type) else window.leParam1
+        )
+        set_param1_value(str(param1))
         window.leParam2.setText(str(param2))
+        if driver_type == "FTDI":
+            refresh_ftdi_devices()
         if settings_initialized:
             settings.setValue("connection/driver_type", driver_type)
 
     def save_connection_params():
         if not settings_initialized:
             return
-        driver_type = window.cmbDriverType.currentText()
-        settings.setValue(f"connection/{driver_type}/param1", window.leParam1.text())
+        driver_type = window.cmbDriverType.currentData() or window.cmbDriverType.currentText()
+        settings.setValue(f"connection/{driver_type}/param1", get_param1_value())
         settings.setValue(f"connection/{driver_type}/param2", window.leParam2.text())
 
     def set_pairing_fields_visible(visible: bool):
@@ -228,8 +327,8 @@ def main():
     def on_connect_click():
         """Connect to device using selected driver type and configuration"""
         nonlocal ts, transport
-        driver_type = window.cmbDriverType.currentText()
-        param1 = window.leParam1.text()
+        driver_type = window.cmbDriverType.currentData() or window.cmbDriverType.currentText()
+        param1 = get_param1_value()
         param2 = window.leParam2.text()
 
         # Show connecting status
@@ -254,6 +353,19 @@ def main():
                 transport = NetworkSpiTransport(param1, int(param2))
             elif driver_type == "TCP":
                 transport = TcpTransport(param1, int(param2))
+            elif driver_type == "FTDI":
+                if not has_pyftdi_support():
+                    raise ValueError("FTDI transport requires pyftdi")
+                if not param1:
+                    raise ValueError("FTDI URL is required")
+                controller = SpiController(cs_count=1)
+                try:
+                    controller.configure(param1)
+                    spi = controller.get_port(cs=0, freq=int(param2), mode=0)
+                    transport = FtdiMpsseTransport(spi, controller=controller)
+                except Exception:
+                    controller.terminate()
+                    raise
             else:
                 raise ValueError(f"Unknown driver type: {driver_type}")
 
@@ -423,12 +535,35 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     window = uic.loadUi("mainwindow.ui")
 
+    window.wParam1Container = QtWidgets.QWidget(window.groupBoxConnection)
+    window.param1Stack = QtWidgets.QStackedLayout(window.wParam1Container)
+    window.param1Stack.setContentsMargins(0, 0, 0, 0)
+
+    window.gridLayout_5.removeWidget(window.leParam1)
+    window.param1Stack.addWidget(window.leParam1)
+
+    window.wParam1Selector = QtWidgets.QWidget(window.wParam1Container)
+    layout_param1_selector = QtWidgets.QHBoxLayout(window.wParam1Selector)
+    layout_param1_selector.setContentsMargins(0, 0, 0, 0)
+    layout_param1_selector.setSpacing(6)
+    window.cmbParam1 = QtWidgets.QComboBox(window.wParam1Selector)
+    window.cmbParam1.setEditable(False)
+    window.btnRefreshParam1 = QtWidgets.QPushButton("Refresh", window.wParam1Selector)
+    window.btnRefreshParam1.setMaximumWidth(80)
+    layout_param1_selector.addWidget(window.cmbParam1)
+    layout_param1_selector.addWidget(window.btnRefreshParam1)
+    layout_param1_selector.setStretch(0, 1)
+    window.param1Stack.addWidget(window.wParam1Selector)
+    window.gridLayout_5.addWidget(window.wParam1Container, 1, 1, 1, 2)
+
     # Connect connection management signals
     window.cmbDriverType.currentTextChanged.connect(on_driver_type_changed)
     window.btnConnectToggle.clicked.connect(on_btnConnectToggle_click)
     window.btnSessionToggle.clicked.connect(on_btnSessionToggle_click)
     window.btnToggleConnectionSettings.clicked.connect(on_toggle_connection_settings)
     window.leParam1.textChanged.connect(save_connection_params)
+    window.cmbParam1.currentTextChanged.connect(save_connection_params)
+    window.btnRefreshParam1.clicked.connect(refresh_ftdi_devices)
     window.leParam2.textChanged.connect(save_connection_params)
     window.cmbPairingProfile.currentTextChanged.connect(on_pairing_profile_changed)
     window.lePairingIndex.textChanged.connect(save_custom_pairing_params)
@@ -468,9 +603,24 @@ def main():
     window.lePairingIndex.setValidator(QtGui.QIntValidator(0, 3))
     on_pairing_profile_changed()
 
+    window.cmbDriverType.clear()
+    window.cmbDriverType.addItem("UART", "UART")
+    window.cmbDriverType.addItem("Network", "Network")
+    window.cmbDriverType.addItem("TCP", "TCP")
+    if has_pyftdi_support():
+        window.cmbDriverType.addItem("FTDI", "FTDI")
+    else:
+        window.cmbDriverType.addItem("FTDI (requires pyftdi)", None)
+        model_item = window.cmbDriverType.model().item(window.cmbDriverType.count() - 1)
+        if model_item is not None:
+            model_item.setEnabled(False)
+        window.cmbDriverType.setToolTip(f"pyftdi unavailable: {pyftdi_error}")
+
     saved_driver = settings.value("connection/driver_type", "UART")
     if saved_driver:
-        window.cmbDriverType.setCurrentText(str(saved_driver))
+        index = window.cmbDriverType.findData(str(saved_driver))
+        if index >= 0:
+            window.cmbDriverType.setCurrentIndex(index)
     settings_initialized = True
     on_driver_type_changed()
     set_connection_settings_visible(False)
