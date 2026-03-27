@@ -27,6 +27,7 @@ from tropicsquare.transports.ftdi_mpsse import FtdiMpsseTransport
 
 import threading
 from importlib import import_module
+from serial.tools import list_ports
 
 
 # Default factory pairing keys (PH0 / PROD0)
@@ -143,7 +144,7 @@ def main():
         return Ftdi is not None and SpiController is not None and UsbTools is not None
 
     def driver_uses_param1_combo(driver_type: str) -> bool:
-        return driver_type == "FTDI"
+        return driver_type in ("UART", "FTDI")
 
     def get_param1_value() -> str:
         driver_type = window.cmbDriverType.currentData() or window.cmbDriverType.currentText()
@@ -161,6 +162,47 @@ def main():
                 window.cmbParam1.setCurrentIndex(index)
         else:
             window.leParam1.setText(text)
+
+    def refresh_uart_devices():
+        current_value = get_param1_value()
+        window.cmbParam1.blockSignals(True)
+        try:
+            window.cmbParam1.clear()
+            ports = [
+                port for port in list_ports.comports()
+                if port.device.startswith("/dev/ttyUSB") or port.device.startswith("/dev/ttyACM")
+            ]
+            ports.sort(key=lambda port: port.device)
+
+            for port in ports:
+                description = port.product or (
+                    port.description if port.description and port.description.lower() != "n/a" else ""
+                )
+                label = f"{port.device} ({description})" if description else port.device
+                window.cmbParam1.addItem(label, port.device)
+                if description:
+                    index = window.cmbParam1.count() - 1
+                    window.cmbParam1.setItemData(index, description, QtCore.Qt.ItemDataRole.ToolTipRole)
+
+            window.cmbParam1.setEnabled(True)
+            window.btnRefreshParam1.setEnabled(True)
+            window.cmbParam1.setToolTip("")
+            if window.cmbParam1.count() == 0:
+                window.cmbParam1.addItem("No UART device found", None)
+
+            index = window.cmbParam1.findData(current_value)
+            if index >= 0:
+                window.cmbParam1.setCurrentIndex(index)
+            elif not current_value and ports:
+                window.cmbParam1.setCurrentIndex(0)
+        except Exception as exc:
+            window.cmbParam1.setEnabled(True)
+            window.btnRefreshParam1.setEnabled(True)
+            window.cmbParam1.clear()
+            window.cmbParam1.setToolTip(f"UART scan failed: {exc}")
+            window.cmbParam1.addItem("UART scan failed", None)
+        finally:
+            window.cmbParam1.blockSignals(False)
 
     def refresh_ftdi_devices():
         current_value = get_param1_value()
@@ -244,7 +286,9 @@ def main():
         )
         set_param1_value(str(param1))
         window.leParam2.setText(str(param2))
-        if driver_type == "FTDI":
+        if driver_type == "UART":
+            refresh_uart_devices()
+        elif driver_type == "FTDI":
             refresh_ftdi_devices()
         if settings_initialized:
             settings.setValue("connection/driver_type", driver_type)
@@ -563,7 +607,14 @@ def main():
     window.btnToggleConnectionSettings.clicked.connect(on_toggle_connection_settings)
     window.leParam1.textChanged.connect(save_connection_params)
     window.cmbParam1.currentTextChanged.connect(save_connection_params)
-    window.btnRefreshParam1.clicked.connect(refresh_ftdi_devices)
+    def on_refresh_param1_click():
+        driver_type = window.cmbDriverType.currentData() or window.cmbDriverType.currentText()
+        if driver_type == "UART":
+            refresh_uart_devices()
+        elif driver_type == "FTDI":
+            refresh_ftdi_devices()
+
+    window.btnRefreshParam1.clicked.connect(on_refresh_param1_click)
     window.leParam2.textChanged.connect(save_connection_params)
     window.cmbPairingProfile.currentTextChanged.connect(on_pairing_profile_changed)
     window.lePairingIndex.textChanged.connect(save_custom_pairing_params)
