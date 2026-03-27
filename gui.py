@@ -44,6 +44,7 @@ def main():
     # Application starts without device connection
     ts = None
     transport = None
+    ftdi_controller = None
     settings = QSettings("tropic01manager", "tropic01manager")
     settings_initialized = False
     current_pairing_pubkey = None
@@ -74,8 +75,14 @@ def main():
         pyftdi_error = exc
 
     def close_transport():
-        nonlocal transport
+        nonlocal transport, ftdi_controller
         if not transport:
+            if ftdi_controller is not None:
+                try:
+                    ftdi_controller.terminate()
+                except Exception:
+                    pass
+                ftdi_controller = None
             return
         if hasattr(transport, "close"):
             try:
@@ -88,6 +95,12 @@ def main():
             except Exception:
                 pass
         transport = None
+        if ftdi_controller is not None:
+            try:
+                ftdi_controller.terminate()
+            except Exception:
+                pass
+            ftdi_controller = None
 
     # Helper function to update UI based on connection state
     def update_connection_ui():
@@ -387,7 +400,7 @@ def main():
 
     def on_connect_click():
         """Connect to device using selected driver type and configuration"""
-        nonlocal ts, transport
+        nonlocal ts, transport, ftdi_controller
         driver_type = window.cmbDriverType.currentData() or window.cmbDriverType.currentText()
         param1 = get_param1_value()
         param2 = window.leParam2.text()
@@ -423,7 +436,8 @@ def main():
                 try:
                     controller.configure(param1)
                     spi = controller.get_port(cs=0, freq=int(param2), mode=0)
-                    transport = FtdiMpsseTransport(spi, controller=controller)
+                    transport = FtdiMpsseTransport(spi)
+                    ftdi_controller = controller
                 except Exception:
                     controller.terminate()
                     raise
